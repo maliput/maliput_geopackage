@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  PACKAGE_NAME: maliput_geopackage
+  ROS_DISTRO: foxy
+  BAZEL_WS: bazel_ws
+
+# Cancel previously running PR jobs
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  cmake:
+    name: Compile and Test (CMake)
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/maliput/ci_foxy_image:latest
+      credentials:
+         username: ${{ github.actor }}
+         password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ros-tooling/action-ros-ci@v0.4
+      id: action_ros_ci_step
+      with:
+        package-name: ${{ env.PACKAGE_NAME }}
+        target-ros2-distro: ${{ env.ROS_DISTRO }}
+        vcs-repo-file-url: ${GITHUB_WORKSPACE}/.github/dependencies.repos
