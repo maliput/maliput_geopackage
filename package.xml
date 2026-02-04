@@ -11,7 +11,8 @@
 
   <depend>maliput</depend>
   <depend>maliput_sparse</depend>
-  <depend>sqlite3</depend>
+
+  <depend>libsqlite3-dev</depend>
 
   <doc_depend>ament_cmake_doxygen</doc_depend>
 
