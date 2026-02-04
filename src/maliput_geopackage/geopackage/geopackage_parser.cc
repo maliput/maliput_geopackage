@@ -38,6 +38,8 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
   // TODO(#4): Implement this.
 }
 
+GeoPackageParser::~GeoPackageParser() = default;
+
 const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
 GeoPackageParser::DoGetJunctions() const {
   // TODO(#4): Implement this.
