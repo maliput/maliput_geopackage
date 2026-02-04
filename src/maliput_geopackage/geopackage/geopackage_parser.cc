@@ -38,9 +38,11 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
   // TODO(#4): Implement this.
 }
 
-const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& GeoPackageParser::DoGetJunctions() const {
+const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
+GeoPackageParser::DoGetJunctions() const {
   // TODO(#4): Implement this.
-  static const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction> kEmptyJunctions;
+  static const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>
+      kEmptyJunctions;
   return kEmptyJunctions;
 }
 
@@ -49,7 +51,6 @@ const std::vector<maliput_sparse::parser::Connection>& GeoPackageParser::DoGetCo
   static const std::vector<maliput_sparse::parser::Connection> kEmptyConnections;
   return kEmptyConnections;
 }
-
 
 }  // namespace geopackage
 }  // namespace maliput_geopackage

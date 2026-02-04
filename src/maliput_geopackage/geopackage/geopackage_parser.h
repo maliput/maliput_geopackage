@@ -64,7 +64,6 @@ class GeoPackageParser : public maliput_sparse::parser::Parser {
 
   /// Gets connections between the map's lanes.
   const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
-
 };
 
 }  // namespace geopackage
