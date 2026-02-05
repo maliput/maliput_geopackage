@@ -1,0 +1,74 @@
+##############################################################################
+# Project
+##############################################################################
+
+cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+project(maliput_geopackage LANGUAGES C CXX VERSION 0.1.0)
+
+##############################################################################
+# Find 3rd Party Packages
+##############################################################################
+
+message(STATUS "\n\n====== Finding 3rd Party Packages ======\n")
+
+find_package(ament_cmake REQUIRED)
+find_package(maliput REQUIRED)
+find_package(maliput_sparse REQUIRED)
+
+find_package(SQLite3 REQUIRED)
+
+##############################################################################
+# Project Configuration
+##############################################################################
+
+message(STATUS "\n\n========= Project Configuration ========\n")
+
+set(BUILD_SHARED_LIBS true)
+
+include(${PROJECT_SOURCE_DIR}/cmake/DefaultCFlags.cmake)
+include(${PROJECT_SOURCE_DIR}/cmake/SanitizersConfig.cmake)
+
+ament_environment_hooks(
+  "${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}"
+)
+
+##############################################################################
+# Sources
+##############################################################################
+add_subdirectory(src)
+
+##############################################################################
+# Tests
+##############################################################################
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_clang_format REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+  enable_testing()
+  add_subdirectory(test)
+  ament_clang_format(CONFIG_FILE ${CMAKE_CURRENT_SOURCE_DIR}/.clang-format)
+endif()
+
+##############################################################################
+# Export
+##############################################################################
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+install(DIRECTORY resources
+        DESTINATION share/${PROJECT_NAME})
+
+ament_environment_hooks("${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/${PROJECT_NAME}.dsv.in")
+ament_environment_hooks("${CMAKE_CURRENT_SOURCE_DIR}/env-hooks/${PROJECT_NAME}.sh.in")
+
+ament_export_include_directories(include)
+ament_export_dependencies(ament_cmake)
+ament_export_dependencies(maliput)
+ament_export_dependencies(maliput_sparse)
+ament_export_dependencies(SQLite3)
+ament_export_targets(${PROJECT_NAME}-targets HAS_LIBRARY_TARGET)
+
+ament_package()
