@@ -97,3 +97,10 @@ def create_simple_road():
 
     db.commit()
     db.close()
+
+def main():
+    create_simple_road()
+    print("Created simple_road.gpkg with a basic 2-lane road and a traffic light.")
+
+if __name__ == '__main__':
+    main()
