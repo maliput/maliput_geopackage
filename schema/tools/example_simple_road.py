@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-# BSD 3-Clause License
-#
-# Copyright (c) 2024, Woven by Toyota
 
 """
 Example: Create a simple 2-lane road using the shared schema.
