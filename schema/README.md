@@ -36,7 +36,12 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
       - [`bulbs`](#bulbs)
       - [`stop_lines`](#stop_lines)
   - [Complete Example](#complete-example)
-  - [Visual Representation](#visual-representation)
+    - [Conceptual layout](#conceptual-layout)
+    - [Junction and segment](#junction-and-segment)
+    - [Lane boundaries (LINESTRINGs)](#lane-boundaries-linestrings)
+    - [Lanes](#lanes-1)
+    - [Optional: lane markings (center dashed line)](#optional-lane-markings-center-dashed-line)
+    - [Optional: Branch points for connectivity](#optional-branch-points-for-connectivity)
 
 ## Schema Definition
 
@@ -71,7 +76,8 @@ CREATE TABLE gpkg_contents (
     max_x DOUBLE,
     max_y DOUBLE,
     srs_id INTEGER,
-    CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
+    CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id)
+        REFERENCES gpkg_spatial_ref_sys(srs_id)
 );
 
 CREATE TABLE gpkg_geometry_columns (
@@ -82,27 +88,20 @@ CREATE TABLE gpkg_geometry_columns (
     z TINYINT NOT NULL,
     m TINYINT NOT NULL,
     CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-    CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-    CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-    CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
+    CONSTRAINT fk_geom_table FOREIGN KEY (table_name)
+        REFERENCES gpkg_contents(table_name),
+    CONSTRAINT fk_geom_srs FOREIGN KEY (srs_id)
+        REFERENCES gpkg_spatial_ref_sys(srs_id)
 );
 
--- example: `boundaries` as a proper GeoPackage feature table
-CREATE TABLE boundaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    boundary_key TEXT UNIQUE,
-    geometry BLOB NOT NULL
+CREATE TABLE gpkg_extensions (
+    table_name TEXT,
+    column_name TEXT,
+    extension_name TEXT NOT NULL,
+    definition TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
 );
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description, srs_id)
-VALUES ('boundaries', 'features', 'boundaries', 'Shared lane boundaries', 4326);
-
-INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m)
-VALUES ('boundaries', 'geometry', 'LINESTRING', 4326, 2, 0);
-
--- set GeoPackage header values when initializing a new .gpkg file
-PRAGMA application_id = 0x47504B47; -- 'GPKG' in ASCII
-PRAGMA user_version = 10300; -- example GeoPackage version code (1.3.0)
 
 ### Core Tables
 
@@ -184,16 +183,6 @@ CREATE TABLE IF NOT EXISTS boundaries (
 | `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `boundary_id` | TEXT | Unique identifier for the boundary (human-friendly key) |
 | `geometry` | BLOB | GeoPackageBinary BLOB encoding of LINESTRINGZ geometry |
-
-**Geometry Format:**
-
-Boundaries are stored as Well-Known Text (WKT) 3D LineStrings:
-
-```sql
-LINESTRINGZ(x1 y1 z1, x2 y2 z2, x3 y3 z3, ...)
-```
-
-The coordinates represent points in the inertial frame (typically ENU - East-North-Up).
 
 ---
 
@@ -586,16 +575,6 @@ CREATE TABLE stop_lines (
 | `allow_passing`    | BOOLEAN | Whether vehicles may pass when no traffic light is active                                     |
 | `name`             | TEXT    | Human-readable name (e.g., 'Stop at Intersection A')                                          |
 
-**Geometry Format:**
-
-Stop lines are represented as 3D line segments perpendicular to the lane direction:
-
-```sql
-LINESTRINGZ(x1 y1 z1, x2 y2 z2)
-```
-
-The line should span the width of the lane at the given s-position.
-
 **Stop Line Types:**
 
 - **Controlled by traffic light**: Reference a `traffic_light_id`. Vehicles stop when the light is red.
@@ -606,425 +585,149 @@ The line should span the width of the lane at the given s-position.
 
 ## Complete Example
 
-Here's a complete SQL script to create a GeoPackage-compliant 2-lane straight road:
+Below is a two-lane road segment using the schema.
 
-```sql
--- Set GeoPackage application identification and version (must be done before creating any tables)
-PRAGMA application_id = 0x47504B47;  -- 'GPKG' in ASCII
-PRAGMA user_version = 10300;          -- GeoPackage version 1.3.0
+**Note on geometry encoding:** GeoPackage stores geometries as GeoPackageBinary (GPKG BLOBs), not raw WKT. For readability the example show geometries as WKT. In practice, tools like GDAL/OGR, SpatiaLite, or geopackage C++/Python APIs handle this automatically.
 
--- ============================================================================
--- REQUIRED GEOPACKAGE CORE TABLES (per OGC GeoPackage specification)
--- ============================================================================
-
-CREATE TABLE gpkg_spatial_ref_sys (
-    srs_name TEXT NOT NULL,
-    srs_id INTEGER PRIMARY KEY,
-    organization TEXT NOT NULL,
-    organization_coordsys_id INTEGER NOT NULL,
-    definition TEXT NOT NULL,
-    description TEXT
-);
-
-CREATE TABLE gpkg_contents (
-    table_name TEXT NOT NULL PRIMARY KEY,
-    data_type TEXT NOT NULL,
-    identifier TEXT UNIQUE,
-    description TEXT DEFAULT '',
-    last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-    min_x DOUBLE,
-    min_y DOUBLE,
-    max_x DOUBLE,
-    max_y DOUBLE,
-    srs_id INTEGER,
-    CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id)
-);
-
-CREATE TABLE gpkg_geometry_columns (
-    table_name TEXT NOT NULL,
-    column_name TEXT NOT NULL,
-    geometry_type_name TEXT NOT NULL,
-    srs_id INTEGER NOT NULL,
-    z TINYINT NOT NULL,
-    m TINYINT NOT NULL,
-    CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name),
-    CONSTRAINT uk_gc_table_name UNIQUE (table_name),
-    CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name),
-    CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id)
-);
-
--- ============================================================================
--- MALIPUT CUSTOM TABLES
--- ============================================================================
-
-CREATE TABLE maliput_metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-);
-
-CREATE TABLE junctions (
-    junction_id TEXT PRIMARY KEY,
-    name TEXT
-);
-
-CREATE TABLE segments (
-    segment_id TEXT PRIMARY KEY,
-    junction_id TEXT NOT NULL,
-    name TEXT,
-    FOREIGN KEY (junction_id) REFERENCES junctions(junction_id)
-);
-
-CREATE TABLE boundaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    boundary_id TEXT UNIQUE NOT NULL,
-    geometry BLOB NOT NULL
-);
-
-CREATE TABLE lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    lane_id TEXT UNIQUE NOT NULL,
-    segment_id TEXT NOT NULL,
-    lane_type TEXT DEFAULT 'driving',
-    direction TEXT DEFAULT 'forward',
-    left_boundary_id TEXT NOT NULL,
-    left_boundary_inverted BOOLEAN DEFAULT FALSE,
-    right_boundary_id TEXT NOT NULL,
-    right_boundary_inverted BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (segment_id) REFERENCES segments(segment_id),
-    FOREIGN KEY (left_boundary_id) REFERENCES boundaries(boundary_id),
-    FOREIGN KEY (right_boundary_id) REFERENCES boundaries(boundary_id)
-);
-
-CREATE TABLE branch_point_lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    branch_point_id TEXT NOT NULL,
-    lane_id TEXT NOT NULL,
-    side TEXT NOT NULL CHECK (side IN ('a', 'b')),
-    lane_end TEXT NOT NULL CHECK (lane_end IN ('start', 'finish')),
-    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id)
-);
-
-CREATE VIEW view_adjacent_lanes AS
-SELECT
-    l1.lane_id AS lane_id,
-    l2.lane_id AS adjacent_lane_id,
-    CASE
-        WHEN l1.right_boundary_id = l2.left_boundary_id THEN 'right'
-        WHEN l1.left_boundary_id  = l2.right_boundary_id THEN 'left'
-        ELSE NULL
-    END AS side
-FROM lanes l1
-JOIN lanes l2
-    ON l1.right_boundary_id = l2.left_boundary_id
-    OR l1.left_boundary_id  = l2.right_boundary_id
-WHERE l1.lane_id <> l2.lane_id
-    AND (
-        l1.right_boundary_id = l2.left_boundary_id
-        OR l1.left_boundary_id  = l2.right_boundary_id
-    );
-
-CREATE TABLE lane_markings (
-    marking_id TEXT PRIMARY KEY,
-    boundary_id TEXT NOT NULL,
-    s_start REAL NOT NULL,
-    s_end REAL NOT NULL,
-    marking_type TEXT NOT NULL,
-    color TEXT DEFAULT 'white',
-    weight TEXT DEFAULT 'standard',
-    width REAL,
-    height REAL,
-    material TEXT,
-    lane_change_rule TEXT DEFAULT 'none',
-    FOREIGN KEY (boundary_id) REFERENCES boundaries(boundary_id),
-    CHECK (s_start >= 0 AND s_end >= s_start)
-);
-
-CREATE TABLE lane_marking_lines (
-    line_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    marking_id TEXT NOT NULL,
-    line_index INTEGER NOT NULL,
-    length REAL,
-    space REAL,
-    width REAL,
-    r_offset REAL,
-    color TEXT,
-    FOREIGN KEY (marking_id) REFERENCES lane_markings(marking_id)
-);
-
-CREATE TABLE traffic_lights (
-    traffic_light_id TEXT PRIMARY KEY,
-    inertial_x REAL NOT NULL,
-    inertial_y REAL NOT NULL,
-    inertial_z REAL NOT NULL,
-    roll REAL DEFAULT 0.0,
-    pitch REAL DEFAULT 0.0,
-    yaw REAL DEFAULT 0.0,
-    name TEXT
-);
-
-CREATE TABLE bulb_groups (
-    bulb_group_id TEXT PRIMARY KEY,
-    traffic_light_id TEXT NOT NULL,
-    relative_x REAL DEFAULT 0.0,
-    relative_y REAL DEFAULT 0.0,
-    relative_z REAL DEFAULT 0.0,
-    roll REAL DEFAULT 0.0,
-    pitch REAL DEFAULT 0.0,
-    yaw REAL DEFAULT 0.0,
-    name TEXT,
-    FOREIGN KEY (traffic_light_id) REFERENCES traffic_lights(traffic_light_id)
-);
-
-CREATE TABLE bulbs (
-    bulb_id TEXT PRIMARY KEY,
-    bulb_group_id TEXT NOT NULL,
-    relative_x REAL DEFAULT 0.0,
-    relative_y REAL DEFAULT 0.0,
-    relative_z REAL DEFAULT 0.0,
-    color TEXT NOT NULL CHECK (color IN ('red', 'yellow', 'green')),
-    bulb_type TEXT NOT NULL CHECK (bulb_type IN ('round', 'arrow')),
-    FOREIGN KEY (bulb_group_id) REFERENCES bulb_groups(bulb_group_id)
-);
-
-CREATE TABLE stop_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stop_line_id TEXT UNIQUE NOT NULL,
-    lane_id TEXT NOT NULL,
-    s_position REAL NOT NULL,
-    geometry BLOB NOT NULL,
-    traffic_light_id TEXT,
-    allow_passing BOOLEAN DEFAULT FALSE,
-    name TEXT,
-    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id),
-    FOREIGN KEY (traffic_light_id) REFERENCES traffic_lights(traffic_light_id),
-    CHECK (s_position >= 0)
-);
-
--- ============================================================================
--- GEOPACKAGE CONTENTS AND GEOMETRY REGISTRATION
--- ============================================================================
-
--- Register WGS 84 (EPSG:4326) as the spatial reference system
-INSERT INTO gpkg_spatial_ref_sys (srs_name, srs_id, organization, organization_coordsys_id, definition, description)
-VALUES (
-    'WGS 84',
-    4326,
-    'EPSG',
-    4326,
-    'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
-    'World Geodetic System 1984'
-);
-
--- Register boundaries as a spatial feature table
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description, srs_id)
-VALUES ('boundaries', 'features', 'boundaries', 'Shared lane boundaries (3D LineStrings)', 4326);
-
-INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m)
-VALUES ('boundaries', 'geometry', 'LINESTRINGZ', 4326, 2, 0);
-
--- Register stop_lines as a spatial feature table
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description, srs_id)
-VALUES ('stop_lines', 'features', 'stop_lines', 'Stop line geometries (3D LineStrings)', 4326);
-
-INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m)
-VALUES ('stop_lines', 'geometry', 'LINESTRINGZ', 4326, 2, 0);
-
--- Register other tables as attributes (non-spatial) in the GeoPackage
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('maliput_metadata', 'attributes', 'maliput_metadata', 'Maliput configuration metadata');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('junctions', 'attributes', 'junctions', 'Road network junctions');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('segments', 'attributes', 'segments', 'Road segments within junctions');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('lanes', 'attributes', 'lanes', 'Driving lanes');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('lane_markings', 'attributes', 'lane_markings', 'Lane marking specifications');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('traffic_lights', 'attributes', 'traffic_lights', 'Traffic light positions and orientations');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('bulb_groups', 'attributes', 'bulb_groups', 'Traffic light bulb group assemblies');
-
-INSERT INTO gpkg_contents (table_name, data_type, identifier, description)
-VALUES ('bulbs', 'attributes', 'bulbs', 'Individual traffic light bulbs');
-
--- ============================================================================
--- EXAMPLE DATA: 2-LANE STRAIGHT ROAD
--- ============================================================================
-
--- Insert metadata
-INSERT INTO maliput_metadata (key, value) VALUES ('linear_tolerance', '0.01');
-INSERT INTO maliput_metadata (key, value) VALUES ('angular_tolerance', '0.01');
-INSERT INTO maliput_metadata (key, value) VALUES ('scale_length', '1.0');
-INSERT INTO maliput_metadata (key, value) VALUES ('inertial_to_backend_frame_translation', '{0.0, 0.0, 0.0}');
-
--- Insert junction
-INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main Road Junction');
-
--- Insert segment
-INSERT INTO segments (segment_id, junction_id, name) VALUES ('j1_s1', 'j1', 'Main Road Segment');
-
--- Insert boundaries (100m straight road, 3.5m lane width each)
-INSERT INTO boundaries (boundary_id, geometry)
-VALUES ('b_right', X'');  -- Placeholder: would contain BLOB-encoded LINESTRINGZ(0 0 0, 25 0 0, 50 0 0, 75 0 0, 100 0 0)
-
-INSERT INTO boundaries (boundary_id, geometry)
-VALUES ('b_between', X'');  -- Placeholder: would contain BLOB-encoded LINESTRINGZ(0 3.5 0, 25 3.5 0, 50 3.5 0, 75 3.5 0, 100 3.5 0)
-
-INSERT INTO boundaries (boundary_id, geometry)
-VALUES ('b_left', X'');  -- Placeholder: would contain BLOB-encoded LINESTRINGZ(0 7.0 0, 25 7.0 0, 50 7.0 0, 75 7.0 0, 100 7.0 0)
-
--- Insert lanes by referencing boundary IDs
--- Lane 1: y = 0 to y = 3.5
-INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, right_boundary_id)
-VALUES (
-    'j1_s1_lane1',
-    'j1_s1',
-    'driving',
-    'forward',
-    'b_between',
-    'b_right'
-);
-
--- Lane 2: y = 3.5 to y = 7.0
-INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, right_boundary_id)
-VALUES (
-    'j1_s1_lane2',
-    'j1_s1',
-    'driving',
-    'forward',
-    'b_left',
-    'b_between'
-);
-
--- Define branch points at start
-INSERT INTO branch_point_lanes (branch_point_id, lane_id, side, lane_end)
-VALUES ('bp_start', 'j1_s1_lane1', 'a', 'start');
-
-INSERT INTO branch_point_lanes (branch_point_id, lane_id, side, lane_end)
-VALUES ('bp_start', 'j1_s1_lane2', 'a', 'start');
-
--- Define branch points at end
-INSERT INTO branch_point_lanes (branch_point_id, lane_id, side, lane_end)
-VALUES ('bp_end', 'j1_s1_lane1', 'a', 'finish');
-
-INSERT INTO branch_point_lanes (branch_point_id, lane_id, side, lane_end)
-VALUES ('bp_end', 'j1_s1_lane2', 'a', 'finish');
-
--- Insert lane markings
--- White dashed line for center boundary (between lanes)
-INSERT INTO lane_markings (marking_id, boundary_id, s_start, s_end, marking_type, color, weight, width, lane_change_rule)
-VALUES (
-    'marking_b_between',
-    'b_between',
-    0.0,
-    100.0,
-    'dashed',
-    'white',
-    'standard',
-    0.15,
-    'allowed'
-);
-
--- Insert detailed line specification for the center marking
-INSERT INTO lane_marking_lines (marking_id, line_index, length, space, width)
-VALUES ('marking_b_between', 0, 3.0, 9.0, 0.15);
-
--- Yellow solid line for left edge (outer boundary)
-INSERT INTO lane_markings (marking_id, boundary_id, s_start, s_end, marking_type, color, weight, width, lane_change_rule)
-VALUES (
-    'marking_b_left',
-    'b_left',
-    0.0,
-    100.0,
-    'solid',
-    'yellow',
-    'standard',
-    0.15,
-    'none'
-);
-
--- Insert traffic light at intersection
-INSERT INTO traffic_lights (traffic_light_id, inertial_x, inertial_y, inertial_z, yaw, name)
-VALUES (
-    'tl_intersection_1',
-    50.0,
-    10.0,
-    4.5,
-    0.0,
-    'Intersection 1 - North Signal'
-);
-
--- Insert bulb group for vehicle signals
-INSERT INTO bulb_groups (bulb_group_id, traffic_light_id, relative_z, name)
-VALUES (
-    'bg_north_vehicles',
-    'tl_intersection_1',
-    0.0,
-    'Vehicle Signal Group'
-);
-
--- Insert bulbs (red, yellow, green stacked vertically)
-INSERT INTO bulbs (bulb_id, bulb_group_id, relative_z, color, bulb_type)
-VALUES ('bulb_red', 'bg_north_vehicles', 0.4, 'red', 'round');
-
-INSERT INTO bulbs (bulb_id, bulb_group_id, relative_z, color, bulb_type)
-VALUES ('bulb_yellow', 'bg_north_vehicles', 0.0, 'yellow', 'round');
-
-INSERT INTO bulbs (bulb_id, bulb_group_id, relative_z, color, bulb_type)
-VALUES ('bulb_green', 'bg_north_vehicles', -0.4, 'green', 'round');
-
--- Insert stop line at lane approach to intersection
--- Note: Placeholder BLOB; actual geometry would be GeoPackageBinary-encoded LINESTRINGZ(90 0 0, 90 3.5 0)
-INSERT INTO stop_lines (stop_line_id, lane_id, s_position, geometry, traffic_light_id, name)
-VALUES (
-    'stop_line_j1_s1_lane1',
-    'j1_s1_lane1',
-    90.0,
-    X'',  -- Placeholder for BLOB geometry
-    'tl_intersection_1',
-    'Stop Line - Intersection 1 Approach'
-);
-
-```
-
-**Notes on GeoPackage Compliance:**
-
-- **PRAGMA directives**: Set `application_id` and `user_version` at the file level to identify it as a GeoPackage.
-- **Required core tables**: `gpkg_spatial_ref_sys`, `gpkg_contents`, and `gpkg_geometry_columns` are mandatory for GeoPackage compliance.
-- **Geometry storage**: The example uses placeholder `X''` BLOBs for geometry columns. In actual use:
-  - Convert WKT geometries (e.g., `LINESTRINGZ(0 0 0, 100 0 0)`) to GeoPackageBinary BLOB format using tools like GDAL, QGIS, or a spatial library.
-  - Use standard GeoPackage geometry encoding to ensure interoperability with other GIS tools.
-- **Integer primary keys**: All spatial feature tables (`boundaries`, `stop_lines`) use auto-incrementing integer `id` as their primary key, with human-friendly unique identifier columns (`boundary_id`, `stop_line_id`) for readability.
-- **Spatial reference system**: The example uses EPSG:4326 (WGS 84). Adjust `srs_id` values if you use a different coordinate system.
-- **Non-spatial tables**: Attribute tables (metadata, junctions, segments, lanes, markings, traffic control) are registered in `gpkg_contents` with `data_type='attributes'` so GIS tools recognize them as valid GeoPackage content without geometry requirements.
-
----
-
-## Visual Representation
+### Conceptual layout
 
 ```text
-                    y = 7.0
-    ┌────────────────────────────────────────┐
-    │              Lane 2                    │
-    │  (j1_s1_lane2)                         │
-    │                                        │
-    ├────────────────────────────────────────┤ y = 3.5 (shared boundary)
-    │              Lane 1                    │
-    │  (j1_s1_lane1)                         │
-    │                                        │
-    └────────────────────────────────────────┘
-   x=0                                      x=100
-                    y = 0
+y = +3.5  ───────────────────  left outer boundary
+y =  0.0  ───────────────────  center boundary (shared)
+y = -3.5  ───────────────────  right outer boundary
 
-   Direction: ─────────────────────────────────>
-              (forward along positive x-axis)
+x: 0 ──────────────────────────────── 100
 ```
 
----
+- One junction
+- One segment
+- Two lanes
+- Three boundaries
+- Lanes share the center boundary
+
+### Junction and segment
+
+```sql
+INSERT INTO junctions (junction_id, name)
+VALUES ('j1', 'Main junction');
+
+INSERT INTO segments (segment_id, junction_id, name)
+VALUES ('s1', 'j1', 'Straight segment');
+```
+
+### Lane boundaries (LINESTRINGs)
+
+We create three boundaries: `b_left_outer`, `b_center` and `b_right_outer`. Adjacency is inferred because two lanes reference the same boundary ID.
+
+```sql
+-- Left outer boundary
+INSERT INTO boundaries (boundary_id, geometry)
+VALUES (
+  'b_left_outer',
+  -- LINESTRING(0 3.5, 100 3.5)
+  -- In real code: convert WKT → GeoPackageBinary
+  ST_GeomFromText('LINESTRING(0 3.5, 100 3.5)', 0)
+);
+
+-- Center boundary (shared)
+INSERT INTO boundaries (boundary_id, geometry)
+VALUES (
+  'b_center',
+  ST_GeomFromText('LINESTRING(0 0.0, 100 0.0)', 0)
+);
+
+-- Right outer boundary
+INSERT INTO boundaries (boundary_id, geometry)
+VALUES (
+  'b_right_outer',
+  ST_GeomFromText('LINESTRING(0 -3.5, 100 -3.5)', 0)
+);
+```
+
+### Lanes
+
+Two forward-driving lanes:
+
+- Lane L1: between left outer and center
+- Lane L2: between center and right outer
+
+```sql
+-- Left lane
+INSERT INTO lanes (
+  lane_id,
+  segment_id,
+  lane_type,
+  direction,
+  left_boundary_id,
+  left_boundary_inverted,
+  right_boundary_id,
+  right_boundary_inverted
+)
+VALUES (
+  'lane_1',
+  's1',
+  'driving',
+  'forward',
+  'b_left_outer',
+  FALSE,
+  'b_center',
+  FALSE
+);
+
+-- Right lane
+INSERT INTO lanes (
+  lane_id,
+  segment_id,
+  lane_type,
+  direction,
+  left_boundary_id,
+  left_boundary_inverted,
+  right_boundary_id,
+  right_boundary_inverted
+)
+VALUES (
+  'lane_2',
+  's1',
+  'driving',
+  'forward',
+  'b_center',
+  FALSE,
+  'b_right_outer',
+  FALSE
+);
+```
+
+### Optional: lane markings (center dashed line)
+
+```sql
+INSERT INTO lane_markings (
+  marking_id,
+  boundary_id,
+  s_start,
+  s_end,
+  marking_type,
+  color,
+  lane_change_rule
+)
+VALUES (
+  'center_dashed',
+  'b_center',
+  0.0,
+  100.0,
+  'dashed',
+  'white',
+  'both'
+);
+```
+
+### Optional: Branch points for connectivity
+
+```sql
+INSERT INTO branch_point_lanes
+(branch_point_id, lane_id, side, lane_end)
+VALUES
+('bp_start', 'lane_1', 'a', 'start'),
+('bp_start', 'lane_2', 'a', 'start'),
+('bp_end',   'lane_1', 'b', 'finish'),
+('bp_end',   'lane_2', 'b', 'finish');
+```
