@@ -1,20 +1,52 @@
 # GeoPackage Schema Tools
 
-Language-agnostic tools for working with maliput GeoPackage databases.
+Language-agnostic tools and schema definitions for working with maliput GeoPackage databases, fully compliant with the OGC GeoPackage 1.3 specification.
+
+This repository defines a canonical maliput GeoPackage schema and provides examples for creating and populating GeoPackage files from Python, Rust, and C++.
 
 ## Philosophy
 
-**Single Source of Truth**: The schema is defined once in `schema.sql`, and language-specific code loads it. This means:
+**Single Source of Truth:** The maliput GeoPackage schema is defined once in schema.sql. From that definition we derive:
 
-- Schema changes are made in one place
-- All languages use the identical schema
-- No code generation, no duplication
-- Clean and maintainable
+- A canonical template GeoPackage (.gpkg)
+- Language-specific examples for populating data
+- Clear, documented semantics for geometry and attributes
+
+This ensures:
+
+- Schema changes happen in one place
+- All languages operate on identical database structures
+- No schema duplication or code generation
+- Long-term maintainability
+- Interoperability with GDAL, QGIS, and other GeoPackage-aware tools
+
+## GeoPackage Compliance
+
+The schema is fully GeoPackage-compliant, specifically, schema.sql defines:
+
+- GeoPackage identification
+  - PRAGMA application_id = 'GPKG'
+  - Application-defined user_version for maliput schema versioning
+- Required core tables: gpkg_spatial_ref_sys, gpkg_contents, gpkg_geometry_columns, gpkg_extensions
+- Required SRS entries
+  - Undefined Cartesian (srs_id = -1)
+  - Undefined Geographic (srs_id = 0)
+- Properly registered feature tables
+  - Geometry columns declared in gpkg_geometry_columns
+  - Feature tables registered in gpkg_contents
+- Standard GeoPackage geometry encoding
+  - Geometry stored as BLOB
+  - Encoded using GeoPackage Geometry Binary (WKB + header)
 
 ## Files
 
-- **`schema.sql`**: Complete SQLite schema definition (the single source of truth)
-- **`example_simple_road.py`**: Example using Python
+- **schema.sql** Complete, executable GeoPackage schema definition (core tables, maliput tables, feature registration, metadata)
+- **template.gpkg** A pre-generated, empty GeoPackage created from schema.sql (see “Generating a GeoPackage file” below)
+
+## Generating the template GeoPackage File
+
+1. Execute and save `schema.sql`: `sqlite3 template.gpkg < schema.sql`
+2. Distribute template.gpkg. Users copy the template and insert data
 
 ## Quick Start
 
@@ -26,37 +58,51 @@ Use standard `sqlite3` module and load the schema:
 import sqlite3
 from pathlib import Path
 
-# Load schema
-db = sqlite3.connect('my_map.gpkg')
-schema_path = Path(__file__).parent / 'schema.sql'
+db = sqlite3.connect("my_map.gpkg")
+
+# Load schema (only if not using a template)
+schema_path = Path(__file__).parent / "schema.sql"
 with open(schema_path) as f:
     db.executescript(f.read())
 
-# Insert data
-db.execute("INSERT INTO junctions (junction_id, name) VALUES (?, ?)",
-           ('j1', 'Main Junction'))
+# Insert schema-level metadata
+db.execute(
+    "INSERT INTO maliput_metadata (key, value) VALUES (?, ?)",
+    ("linear_tolerance", "0.01"),
+)
 
-db.execute("INSERT INTO lanes (lane_id, segment_id, left_boundary_id, right_boundary_id) VALUES (?, ?, ?, ?)",
-           ('lane1', 'seg1', 'b_left', 'b_right'))
+# Domain data
+db.execute(
+    "INSERT INTO junctions (junction_id, name) VALUES (?, ?)",
+    ("j1", "Main Junction"),
+)
+db.execute(
+    "INSERT INTO segments (segment_id, junction_id, name) VALUES (?, ?, ?)",
+    ("seg1", "j1", "Main Segment"),
+)
 
-# Query data
-cursor = db.execute("SELECT lane_id, lane_type FROM lanes")
-for row in cursor:
-    print(f"Lane {row[0]}: {row[1]}")
+# Feature table (geometry placeholder)
+db.execute(
+    "INSERT INTO boundaries (boundary_id, geometry) VALUES (?, ?)",
+    ("b_left", b""),
+)
+
+db.execute(
+    """
+    INSERT INTO lanes
+      (lane_id, segment_id, left_boundary_id, right_boundary_id)
+    VALUES (?, ?, ?, ?)
+    """,
+    ("lane1", "seg1", "b_left", "b_right"),
+)
 
 db.commit()
 db.close()
 ```
 
-Run the example:
-
-```bash
-python3 example_simple_road.py
-```
-
 ### Rust
 
-Use `rusqlite` crate:
+Use `rusqlite` crate (with the `bundled` feature for SQLite):
 
 ```toml
 [dependencies]
@@ -72,32 +118,24 @@ use std::fs;
 fn main() -> rusqlite::Result<()> {
     let db = Connection::open("my_map.gpkg")?;
 
-    // Load schema
-    let schema = fs::read_to_string("schema.sql")
-        .expect("Failed to read schema.sql");
+    // Load schema (skip if using a template GeoPackage)
+    let schema = fs::read_to_string("schema.sql").unwrap();
     db.execute_batch(&schema)?;
 
-    // Insert data
+    db.execute(
+        "INSERT INTO maliput_metadata (key, value) VALUES (?1, ?2)",
+        ("linear_tolerance", "0.01"),
+    )?;
+
     db.execute(
         "INSERT INTO junctions (junction_id, name) VALUES (?1, ?2)",
-        ["j1", "Main Junction"],
+        ("j1", "Main Junction"),
     )?;
 
     db.execute(
-        "INSERT INTO lanes (lane_id, segment_id, left_boundary_id, right_boundary_id) VALUES (?1, ?2, ?3, ?4)",
-        ["lane1", "seg1", "b_left", "b_right"],
+        "INSERT INTO boundaries (boundary_id, geometry) VALUES (?1, ?2)",
+        ("b_left", &[] as &[u8]),
     )?;
-
-    // Query data
-    let mut stmt = db.prepare("SELECT lane_id, lane_type FROM lanes")?;
-    let lanes = stmt.query_map([], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
-
-    for lane in lanes {
-        let (id, lane_type) = lane?;
-        println!("Lane {}: {}", id, lane_type);
-    }
 
     Ok(())
 }
@@ -109,57 +147,44 @@ Use SQLite3 C API:
 
 ```cpp
 #include <sqlite3.h>
-#include <iostream>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 int main() {
     sqlite3* db;
-    int rc = sqlite3_open("my_map.gpkg", &db);
-
-    if (rc) {
-        std::cerr << "Cannot open database: " << sqlite3_errmsg(db) << std::endl;
+    if (sqlite3_open("my_map.gpkg", &db) != SQLITE_OK) {
+        std::cerr << "Failed to open database\n";
         return 1;
     }
 
-    // Load schema
-    std::ifstream schema_file("schema.sql");
-    std::stringstream schema_buffer;
-    schema_buffer << schema_file.rdbuf();
-    std::string schema = schema_buffer.str();
+    // Load schema (skip if using template)
+    std::ifstream file("schema.sql");
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string schema = buffer.str();
 
-    char* err_msg = nullptr;
-    rc = sqlite3_exec(db, schema.c_str(), nullptr, nullptr, &err_msg);
-
-    if (rc != SQLITE_OK) {
-        std::cerr << "SQL error: " << err_msg << std::endl;
-        sqlite3_free(err_msg);
-        sqlite3_close(db);
-        return 1;
+    char* err = nullptr;
+    if (sqlite3_exec(db, schema.c_str(), nullptr, nullptr, &err) != SQLITE_OK) {
+        std::cerr << "Schema error: " << err << "\n";
+        sqlite3_free(err);
     }
 
-    // Insert data
-    const char* insert_sql = "INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main Junction')";
-    rc = sqlite3_exec(db, insert_sql, nullptr, nullptr, &err_msg);
+    sqlite3_exec(
+        db,
+        "INSERT INTO maliput_metadata (key, value) "
+        "VALUES ('linear_tolerance', '0.01')",
+        nullptr, nullptr, nullptr
+    );
 
-    if (rc != SQLITE_OK) {
-        std::cerr << "Insert error: " << err_msg << std::endl;
-        sqlite3_free(err_msg);
-    }
-
-    // Query data
-    sqlite3_stmt* stmt;
-    const char* query = "SELECT lane_id, lane_type FROM lanes";
-    rc = sqlite3_prepare_v2(db, query, -1, &stmt, nullptr);
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        const char* lane_id = (const char*)sqlite3_column_text(stmt, 0);
-        const char* lane_type = (const char*)sqlite3_column_text(stmt, 1);
-        std::cout << "Lane " << lane_id << ": " << lane_type << std::endl;
-    }
-
-    sqlite3_finalize(stmt);
     sqlite3_close(db);
     return 0;
 }
 ```
+
+### Notes on Geometry Encoding
+
+Geometry columns must contain GeoPackage Geometry Binary. Do not store raw WKB or JSON, recommended encoders are:
+
+- GDAL / OGR (C++, Python, Rust bindings)
+- GEOS / Shapely (geometry) + GDAL (I/O)
