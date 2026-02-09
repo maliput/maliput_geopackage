@@ -1,0 +1,86 @@
+###############################################################################
+# Loaders
+###############################################################################
+
+load("//:bazel/variables.bzl", "COPTS")
+
+###############################################################################
+# Libraries
+###############################################################################
+
+# Private geopackage parser headers (internal implementation)
+cc_library(
+    name = "private_geopackage_headers",
+    hdrs = glob(["src/maliput_geopackage/geopackage/*.h"]),
+    copts = COPTS,
+    strip_include_prefix = "src",
+    visibility = ["//:__pkg__"],
+    deps = [
+        "@maliput//:common",
+        "@maliput_sparse//:parser",
+    ],
+)
+
+# GeoPackage parser library
+cc_library(
+    name = "geopackage",
+    srcs = glob(["src/maliput_geopackage/geopackage/*.cc"]),
+    copts = COPTS,
+    visibility = ["//:__pkg__"],
+    deps = [
+        ":private_geopackage_headers",
+        "@maliput//:common",
+        "@maliput//:math",
+        "@maliput_sparse//:geometry",
+        "@maliput_sparse//:parser",
+    ],
+)
+
+# Private builder headers (internal implementation)
+cc_library(
+    name = "private_builder_headers",
+    hdrs = glob(["src/maliput_geopackage/builder/*.h"]),
+    copts = COPTS,
+    strip_include_prefix = "src",
+    visibility = [
+        "//:__pkg__",
+        "//test:__subpackages__",
+    ],
+    deps = [
+        "@maliput//:api",
+        "@maliput//:math",
+        "@maliput_sparse//:loader",
+    ],
+)
+
+# Builder library
+cc_library(
+    name = "builder",
+    srcs = glob(["src/maliput_geopackage/builder/*.cc"]),
+    hdrs = glob(["include/maliput_geopackage/builder/*.h"]),
+    copts = COPTS,
+    strip_include_prefix = "include",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":geopackage",
+        ":private_builder_headers",
+        "@maliput//:api",
+        "@maliput//:common",
+        "@maliput_sparse//:loader",
+    ],
+)
+
+# Plugin library (road_network loader plugin)
+cc_library(
+    name = "plugin",
+    srcs = glob(["src/plugin/*.cc"]),
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":builder",
+        ":private_builder_headers",
+        "@maliput//:api",
+        "@maliput//:plugin",
+    ],
+)
+
