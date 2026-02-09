@@ -129,7 +129,7 @@ CREATE TABLE maliput_metadata (
 
 #### `junctions`
 
-Defines junctions in the road network. A junction is a collection of segments that share common branch points.
+Defines _Junctions_ in the road network. A _Junction_ is a container object that groups together related road _Segments_. It represents a specific, distinct volumetric region of the road network—such as an intersection, a parking lot, or a stretch of highway.
 
 ```sql
 CREATE TABLE junctions (
@@ -147,7 +147,7 @@ CREATE TABLE junctions (
 
 #### `segments`
 
-Defines segments within junctions. A segment is a collection of parallel lanes.
+Defines _Segments_ within _Junctions_. A _Segment_ is a container that groups together adjacent _Lanes_ sharing the same continuous road surface geometry.
 
 ```sql
 CREATE TABLE segments (
