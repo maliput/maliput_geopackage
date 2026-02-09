@@ -100,6 +100,36 @@ db.commit()
 db.close()
 ```
 
+#### Example on how to encode geometry with external library
+
+```python
+from osgeo import ogr, osr
+import sqlite3
+
+# Create LINESTRING geometry
+geom = ogr.Geometry(ogr.wkbLineString)
+geom.AddPoint(0.0, 3.5)
+geom.AddPoint(100.0, 3.5)
+
+# Spatial reference (SRS 0 = undefined)
+srs = osr.SpatialReference()
+srs.ImportFromEPSG(0)  # optional, but explicit
+
+geom.AssignSpatialReference(srs)
+
+# Export to GeoPackageBinary
+gpkg_blob = geom.ExportToGPKGBinary()
+
+# Insert into your table
+db = sqlite3.connect("my_map.gpkg")
+db.execute(
+    "INSERT INTO boundaries (boundary_id, geometry) VALUES (?, ?)",
+    ("b_left", gpkg_blob),
+)
+db.commit()
+db.close()
+```
+
 ### Rust
 
 Use `rusqlite` crate (with the `bundled` feature for SQLite):
