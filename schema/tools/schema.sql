@@ -7,7 +7,7 @@
 -- ---------------------------------------------------------------------------
 
 PRAGMA application_id = 0x47504B47;  -- 'GPKG'
-PRAGMA user_version  = 1;           -- Maliput schema version (NOT GeoPackage)
+PRAGMA user_version  = 10300;       -- GeoPackage version 1.3.0
 
 -- ---------------------------------------------------------------------------
 -- REQUIRED CORE GEOPACKAGE TABLES
@@ -69,11 +69,11 @@ INSERT INTO gpkg_spatial_ref_sys VALUES
 ('Undefined Geographic', 0, 'NONE', 0, 'undefined', 'undefined');
 
 -- Example common SRS (enable if needed)
--- INSERT INTO gpkg_spatial_ref_sys VALUES
--- ('WGS 84', 4326, 'EPSG', 4326,
---  'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],
---   PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
---  'longitude/latitude');
+INSERT INTO gpkg_spatial_ref_sys VALUES
+('WGS 84', 4326, 'EPSG', 4326,
+ 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],
+  PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
+ 'longitude/latitude');
 
 -- ============================================================================
 -- MALIPUT APPLICATION METADATA
