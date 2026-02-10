@@ -1,0 +1,30 @@
+{
+    "homepage": "https://github.com/maliput/maliput_geopackage",
+    "maintainers": [
+      {
+        "name": "Daniel Stonier",
+        "email": "d.stonier@gmail.com",
+        "github": "stonier"
+      },
+      {
+        "name": "Franco Cipollone",
+        "email": "francocipollone1@gmail.com",
+        "github": "francocipollone"
+      },
+      {
+        "name": "Santiago Lopez",
+        "email": "santiago.lopez@ekumenlabs.com",
+        "github": "Santoi"
+      },
+      {
+        "name": "Juan Manuel Carosella Grau",
+        "email": "juancarosella96@ekumenlabs.com",
+        "github": "JCarosella"
+      }
+    ],
+    "repository": [
+      "github:maliput/maliput_geopackage"
+    ],
+    "versions": [],
+    "yanked_versions": {}
+  }
