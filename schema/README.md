@@ -312,7 +312,8 @@ Stores lane marking information associated with boundaries. Lane markings can va
 
 ```sql
 CREATE TABLE lane_markings (
-    marking_id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    marking_id TEXT UNIQUE NOT NULL,
     boundary_id TEXT NOT NULL,
     s_start REAL NOT NULL,
     s_end REAL NOT NULL,
@@ -330,6 +331,7 @@ CREATE TABLE lane_markings (
 
 | Column             | Type | Description                                                                                                                  |
 | ------------------ | ---- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `marking_id`       | TEXT | Unique identifier for the marking                                                                                            |
 | `boundary_id`      | TEXT | Reference to the boundary this marking is on                                                                                 |
 | `s_start`          | REAL | Start position along the boundary (s-coordinate) in meters                                                                   |
@@ -361,7 +363,8 @@ Stores detailed line definitions for complex markings with multiple line compone
 
 ```sql
 CREATE TABLE lane_marking_lines (
-    line_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    line_id TEXT UNIQUE NOT NULL,
     marking_id TEXT NOT NULL,
     line_index INTEGER NOT NULL,
     length REAL,
@@ -375,6 +378,7 @@ CREATE TABLE lane_marking_lines (
 
 | Column       | Type    | Description                                                       |
 | ------------ | ------- | ----------------------------------------------------------------- |
+| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `line_id`    | INTEGER | Auto-incremented identifier for this line component               |
 | `marking_id` | TEXT    | Reference to the parent marking                                   |
 | `line_index` | INTEGER | Order of this line within the marking (0-based)                   |
@@ -439,7 +443,8 @@ Stores physical traffic light devices positioned in the road network. Each traff
 
 ```sql
 CREATE TABLE traffic_lights (
-    traffic_light_id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    traffic_light_id TEXT UNIQUE NOT NULL,
     inertial_x REAL NOT NULL,
     inertial_y REAL NOT NULL,
     inertial_z REAL NOT NULL,
@@ -452,6 +457,7 @@ CREATE TABLE traffic_lights (
 
 | Column             | Type | Description                                                       |
 | ------------------ | ---- | ----------------------------------------------------------------- |
+| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `traffic_light_id` | TEXT | Unique identifier for the traffic light                           |
 | `inertial_x`       | REAL | X-coordinate of traffic light position in inertial frame (meters) |
 | `inertial_y`       | REAL | Y-coordinate of traffic light position in inertial frame (meters) |
@@ -475,7 +481,8 @@ Bulb groups are collections of bulbs within a traffic light. A traffic light may
 
 ```sql
 CREATE TABLE bulb_groups (
-    bulb_group_id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bulb_group_id TEXT UNIQUE NOT NULL,
     traffic_light_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
     relative_y REAL DEFAULT 0.0,
@@ -490,6 +497,7 @@ CREATE TABLE bulb_groups (
 
 | Column             | Type | Description                                          |
 | ------------------ | ---- | ---------------------------------------------------- |
+| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `bulb_group_id`    | TEXT | Unique identifier for the bulb group                 |
 | `traffic_light_id` | TEXT | Parent traffic light ID                              |
 | `relative_x`       | REAL | X-position relative to parent traffic light (meters) |
@@ -513,7 +521,8 @@ Bulbs are individual light elements within a bulb group. Each bulb has a color a
 
 ```sql
 CREATE TABLE bulbs (
-    bulb_id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bulb_id TEXT UNIQUE NOT NULL,
     bulb_group_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
     relative_y REAL DEFAULT 0.0,
@@ -526,6 +535,7 @@ CREATE TABLE bulbs (
 
 | Column          | Type | Description                                             |
 | --------------- | ---- | ------------------------------------------------------- |
+| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `bulb_id`       | TEXT | Unique identifier for the bulb                          |
 | `bulb_group_id` | TEXT | Parent bulb group ID                                    |
 | `relative_x`    | REAL | X-position relative to parent bulb group (meters)       |
