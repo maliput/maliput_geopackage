@@ -71,17 +71,20 @@ cc_library(
     ],
 )
 
-# Plugin library (road_network loader plugin)
-cc_library(
-    name = "plugin",
-    srcs = glob(["src/plugin/*.cc"]),
+cc_binary(
+    # Road network plugin for the maliput_geopackage implementation.
+    # - linkstatic is set to True to link all the dependencies statically.
+    # This is convenient for users of the plugin, as they won't have to
+    # worry about providing the dependencies at runtime.
+    # - linkshared is set to True to build a shared library.
+    name = "maliput_plugins/libmaliput_geopackage_road_network.so",
+    srcs = glob(["src/plugin/**/*.cc"]),
     copts = COPTS,
     visibility = ["//visibility:public"],
     deps = [
         ":builder",
-        ":private_builder_headers",
-        "@maliput//:api",
         "@maliput//:plugin",
     ],
+    linkstatic = True,
+    linkshared = True,
 )
-
