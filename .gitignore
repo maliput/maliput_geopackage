@@ -1,0 +1,5 @@
+# Bazel
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-maliput_geopackage

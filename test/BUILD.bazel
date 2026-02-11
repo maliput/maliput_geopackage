@@ -1,0 +1,25 @@
+###############################################################################
+# Loaders
+###############################################################################
+
+load("@rules_cc//cc:defs.bzl", "cc_test")
+load("//:bazel/variables.bzl", "COPTS")
+
+###############################################################################
+# Tests
+###############################################################################
+
+cc_test(
+    name = "builder_configuration_test",
+    srcs = ["builder/builder_configuration_test.cc"],
+    copts = COPTS,
+    deps = [
+        "//:builder",
+        "//:private_builder_headers",
+        "@googletest//:gtest_main",
+        "@maliput//:api",
+        "@maliput//:math",
+        "@maliput_sparse//:loader",
+        "@maliput_sparse//:parser",
+    ],
+)
