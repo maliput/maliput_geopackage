@@ -174,7 +174,6 @@ VALUES
 -- ============================================================================
 
 CREATE TABLE lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     lane_id TEXT UNIQUE NOT NULL,
     segment_id TEXT NOT NULL,
     lane_type TEXT DEFAULT 'driving',
@@ -193,7 +192,6 @@ CREATE TABLE lanes (
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE branch_point_lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_point_id TEXT NOT NULL,
     lane_id TEXT NOT NULL,
     side TEXT NOT NULL CHECK (side IN ('a', 'b')),
@@ -222,7 +220,6 @@ WHERE l1.lane_id <> l2.lane_id;
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE lane_markings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     marking_id TEXT UNIQUE NOT NULL,
     boundary_id TEXT NOT NULL,
     s_start REAL NOT NULL,
@@ -239,7 +236,6 @@ CREATE TABLE lane_markings (
 );
 
 CREATE TABLE lane_marking_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     line_id TEXT UNIQUE NOT NULL,
     marking_id TEXT NOT NULL,
     line_index INTEGER NOT NULL,
@@ -256,7 +252,6 @@ CREATE TABLE lane_marking_lines (
 -- ============================================================================
 
 CREATE TABLE traffic_lights (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     traffic_light_id TEXT UNIQUE NOT NULL,
     inertial_x REAL NOT NULL,
     inertial_y REAL NOT NULL,
@@ -268,7 +263,6 @@ CREATE TABLE traffic_lights (
 );
 
 CREATE TABLE bulb_groups (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     bulb_group_id TEXT UNIQUE NOT NULL,
     traffic_light_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
@@ -282,7 +276,6 @@ CREATE TABLE bulb_groups (
 );
 
 CREATE TABLE bulbs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     bulb_id TEXT UNIQUE NOT NULL,
     bulb_group_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
