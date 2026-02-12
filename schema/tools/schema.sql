@@ -64,16 +64,27 @@ CREATE TABLE gpkg_extensions (
 -- REQUIRED SRS ENTRIES
 -- ---------------------------------------------------------------------------
 
-INSERT INTO gpkg_spatial_ref_sys VALUES
-('Undefined Cartesian', -1, 'NONE', -1, 'undefined', 'undefined'),
-('Undefined Geographic', 0, 'NONE', 0, 'undefined', 'undefined');
-
--- Example common SRS (enable if needed)
-INSERT INTO gpkg_spatial_ref_sys VALUES
-('WGS 84', 4326, 'EPSG', 4326,
- 'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],
-  PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',
- 'longitude/latitude');
+INSERT INTO gpkg_spatial_ref_sys (
+    srs_name,
+    srs_id,
+    organization,
+    organization_coordsys_id,
+    definition,
+    description
+) VALUES (
+    'maliput_local_cartesian',
+    100000,
+    'MALIPUT',
+    1,
+    'LOCAL_CS["maliput",
+        LOCAL_DATUM["map_origin", 0],
+        UNIT["metre", 1],
+        AXIS["x", EAST],
+        AXIS["y", NORTH],
+        AXIS["z", UP]
+    ]',
+    'Local Cartesian coordinate system aligned with maliput inertial frame'
+);
 
 -- ============================================================================
 -- MALIPUT APPLICATION METADATA
@@ -124,12 +135,12 @@ INSERT INTO gpkg_contents
 (table_name, data_type, identifier, description, srs_id)
 VALUES
 ('boundaries', 'features', 'Lane Boundaries',
- 'Shared lane boundary geometries', 0);
+ 'Shared lane boundary geometries', 100000);
 
 INSERT INTO gpkg_geometry_columns
 (table_name, column_name, geometry_type_name, srs_id, z, m)
 VALUES
-('boundaries', 'geometry', 'LINESTRING', 0, 0, 0);
+('boundaries', 'geometry', 'LINESTRING', 100000, 1, 0);
 
 -- ---------------------------------------------------------------------------
 -- Stop lines (LINESTRING)
@@ -151,12 +162,12 @@ INSERT INTO gpkg_contents
 (table_name, data_type, identifier, description, srs_id)
 VALUES
 ('stop_lines', 'features', 'Stop Lines',
- 'Lane stop line geometries', 0);
+ 'Lane stop line geometries', 100000);
 
 INSERT INTO gpkg_geometry_columns
 (table_name, column_name, geometry_type_name, srs_id, z, m)
 VALUES
-('stop_lines', 'geometry', 'LINESTRING', 0, 0, 0);
+('stop_lines', 'geometry', 'LINESTRING', 100000, 1, 0);
 
 -- ============================================================================
 -- ATTRIBUTE TABLES (NON-SPATIAL)

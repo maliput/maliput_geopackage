@@ -29,8 +29,6 @@ The schema is fully GeoPackage-compliant, specifically, schema.sql defines:
   - Application-defined user_version for maliput schema versioning
 - Required core tables: gpkg_spatial_ref_sys, gpkg_contents, gpkg_geometry_columns, gpkg_extensions
 - Required SRS entries
-  - Undefined Cartesian (srs_id = -1)
-  - Undefined Geographic (srs_id = 0)
 - Properly registered feature tables
   - Geometry columns declared in gpkg_geometry_columns
   - Feature tables registered in gpkg_contents
