@@ -18,6 +18,7 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
   - [ToC](#toc)
   - [Schema Definition](#schema-definition)
   - [GeoPackage compliance notes](#geopackage-compliance-notes)
+  - [Coordinate reference system choice](#coordinate-reference-system-choice)
     - [Core Tables](#core-tables)
       - [`maliput_metadata`](#maliput_metadata)
       - [`junctions`](#junctions)
@@ -103,6 +104,36 @@ CREATE TABLE gpkg_extensions (
     CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
 );
 
+## Coordinate reference system choice
+
+This GeoPackage schema adopts a custom local Cartesian coordinate reference system aligned with maliput’s inertial frame. While GeoPackage is commonly used with Earth-referenced coordinate systems (e.g., WGS84), maliput fundamentally operates in a flat, right-handed Cartesian space with metric units and no notion of geodesy, Earth curvature, or map projections. Using a geodetic or projected CRS would therefore introduce unnecessary coordinate transformations, precision loss, and additional complexity without providing functional benefits to maliput’s road network abstractions. The GeoPackage specification permits custom, non-Earth-referenced spatial reference systems, allowing the schema to directly encode geometry in the same coordinate space expected by maliput. By choosing a local Cartesian CRS, the schema preserves geometric fidelity, simplifies parsing and ingestion, and maintains a clear semantic alignment between the stored data and maliput’s API. It is up to the creator of the geopackage file to convert the points into this local coordinate system.
+
+The custom SRS is defined as follows:
+
+```sql
+INSERT INTO gpkg_spatial_ref_sys (
+    srs_name,
+    srs_id,
+    organization,
+    organization_coordsys_id,
+    definition,
+    description
+) VALUES (
+    'maliput_local_cartesian',
+    100000,
+    'MALIPUT',
+    1,
+    'LOCAL_CS["maliput",
+        LOCAL_DATUM["map_origin", 0],
+        UNIT["metre", 1],
+        AXIS["x", EAST],
+        AXIS["y", NORTH],
+        AXIS["z", UP]
+    ]',
+    'Local Cartesian coordinate system aligned with maliput inertial frame'
+);
+```
+
 ### Core Tables
 
 #### `maliput_metadata`
@@ -171,7 +202,7 @@ CREATE TABLE segments (
 Stores shared boundary geometries. For GeoPackage compliance, geometries should be stored as BLOB (GeoPackageBinary format). These are referenced from `lanes` by ID to avoid duplicating identical boundary geometry when adjacent lanes share a common edge.
 
 ```sql
-CREATE TABLE IF NOT EXISTS boundaries (
+CREATE TABLE boundaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     boundary_id TEXT UNIQUE NOT NULL,
     geometry BLOB NOT NULL  -- GeoPackageBinary BLOB for spatial compliance
@@ -184,6 +215,38 @@ CREATE TABLE IF NOT EXISTS boundaries (
 | `boundary_id` | TEXT | Unique identifier for the boundary (human-friendly key) |
 | `geometry` | BLOB | GeoPackageBinary BLOB encoding of LINESTRINGZ geometry |
 
+Given boundaries are a spatial map feature, they need to be registered in the `gpkg_contents` and `gpkg_geometry_columns` tables:
+
+```sql
+INSERT INTO gpkg_contents (
+    table_name,
+    data_type,
+    identifier,
+    srs_id
+) VALUES (
+    'boundaries',
+    'features',
+    'Lane boundaries',
+    100000      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
+);
+
+INSERT INTO gpkg_geometry_columns (
+    table_name,
+    column_name,
+    geometry_type_name,
+    srs_id,
+    z,
+    m
+) VALUES (
+    'boundaries',
+    'geom',
+    'LINESTRING',
+    100000,      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
+    1,           -- We want z values
+    0
+);
+```
+
 ---
 
 #### `lanes`
@@ -192,7 +255,6 @@ Defines lanes which reference left and right boundary geometries stored in the `
 
 ```sql
 CREATE TABLE lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     lane_id TEXT UNIQUE NOT NULL,
     segment_id TEXT NOT NULL,
     lane_type TEXT DEFAULT 'driving',
@@ -209,7 +271,6 @@ CREATE TABLE lanes (
 
 | Column | Type | Description |
 | -------- | ------ | ------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `lane_id` | TEXT | Unique identifier for the lane (human-friendly key) |
 | `segment_id` | TEXT | Parent segment ID |
 | `lane_type` | TEXT | Lane type: `driving`, `shoulder`, `parking`, etc. |
@@ -229,7 +290,6 @@ Defines how lanes connect at branch points. Branch points are the start and end 
 
 ```sql
 CREATE TABLE branch_point_lanes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     branch_point_id TEXT NOT NULL,
     lane_id TEXT NOT NULL,
     side TEXT NOT NULL CHECK (side IN ('a', 'b')),
@@ -312,7 +372,6 @@ Stores lane marking information associated with boundaries. Lane markings can va
 
 ```sql
 CREATE TABLE lane_markings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     marking_id TEXT UNIQUE NOT NULL,
     boundary_id TEXT NOT NULL,
     s_start REAL NOT NULL,
@@ -331,7 +390,6 @@ CREATE TABLE lane_markings (
 
 | Column             | Type | Description                                                                                                                  |
 | ------------------ | ---- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `marking_id`       | TEXT | Unique identifier for the marking                                                                                            |
 | `boundary_id`      | TEXT | Reference to the boundary this marking is on                                                                                 |
 | `s_start`          | REAL | Start position along the boundary (s-coordinate) in meters                                                                   |
@@ -363,7 +421,6 @@ Stores detailed line definitions for complex markings with multiple line compone
 
 ```sql
 CREATE TABLE lane_marking_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     line_id TEXT UNIQUE NOT NULL,
     marking_id TEXT NOT NULL,
     line_index INTEGER NOT NULL,
@@ -378,7 +435,6 @@ CREATE TABLE lane_marking_lines (
 
 | Column       | Type    | Description                                                       |
 | ------------ | ------- | ----------------------------------------------------------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `line_id`    | INTEGER | Auto-incremented identifier for this line component               |
 | `marking_id` | TEXT    | Reference to the parent marking                                   |
 | `line_index` | INTEGER | Order of this line within the marking (0-based)                   |
@@ -443,7 +499,6 @@ Stores physical traffic light devices positioned in the road network. Each traff
 
 ```sql
 CREATE TABLE traffic_lights (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     traffic_light_id TEXT UNIQUE NOT NULL,
     inertial_x REAL NOT NULL,
     inertial_y REAL NOT NULL,
@@ -457,7 +512,6 @@ CREATE TABLE traffic_lights (
 
 | Column             | Type | Description                                                       |
 | ------------------ | ---- | ----------------------------------------------------------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `traffic_light_id` | TEXT | Unique identifier for the traffic light                           |
 | `inertial_x`       | REAL | X-coordinate of traffic light position in inertial frame (meters) |
 | `inertial_y`       | REAL | Y-coordinate of traffic light position in inertial frame (meters) |
@@ -481,7 +535,6 @@ Bulb groups are collections of bulbs within a traffic light. A traffic light may
 
 ```sql
 CREATE TABLE bulb_groups (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     bulb_group_id TEXT UNIQUE NOT NULL,
     traffic_light_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
@@ -497,7 +550,6 @@ CREATE TABLE bulb_groups (
 
 | Column             | Type | Description                                          |
 | ------------------ | ---- | ---------------------------------------------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `bulb_group_id`    | TEXT | Unique identifier for the bulb group                 |
 | `traffic_light_id` | TEXT | Parent traffic light ID                              |
 | `relative_x`       | REAL | X-position relative to parent traffic light (meters) |
@@ -521,7 +573,6 @@ Bulbs are individual light elements within a bulb group. Each bulb has a color a
 
 ```sql
 CREATE TABLE bulbs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     bulb_id TEXT UNIQUE NOT NULL,
     bulb_group_id TEXT NOT NULL,
     relative_x REAL DEFAULT 0.0,
@@ -535,7 +586,6 @@ CREATE TABLE bulbs (
 
 | Column          | Type | Description                                             |
 | --------------- | ---- | ------------------------------------------------------- |
-| `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `bulb_id`       | TEXT | Unique identifier for the bulb                          |
 | `bulb_group_id` | TEXT | Parent bulb group ID                                    |
 | `relative_x`    | REAL | X-position relative to parent bulb group (meters)       |
@@ -590,6 +640,38 @@ CREATE TABLE stop_lines (
 - **Controlled by traffic light**: Reference a `traffic_light_id`. Vehicles stop when the light is red.
 - **Regulatory stop**: No traffic light reference. Vehicles always must stop (stop sign).
 - **Yield line**: Set `allow_passing=TRUE` to indicate vehicles may proceed cautiously.
+
+Given stop lines are a spatial map feature, they need to be registered in the `gpkg_contents` and `gpkg_geometry_columns` tables:
+
+```sql
+INSERT INTO gpkg_contents (
+    table_name,
+    data_type,
+    identifier,
+    srs_id
+) VALUES (
+    'stop_lines',
+    'features',
+    'Stop Lines',
+    100000      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
+);
+
+INSERT INTO gpkg_geometry_columns (
+    table_name,
+    column_name,
+    geometry_type_name,
+    srs_id,
+    z,
+    m
+) VALUES (
+    'stop_lines',
+    'geom',
+    'LINESTRING',
+    100000,      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
+    1,           -- We want z values
+    0
+);
+```
 
 ---
 
