@@ -125,7 +125,7 @@ CREATE TABLE segments (
 -- Lane boundaries (LINESTRING)
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE boundaries (
+CREATE TABLE lane_boundaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     boundary_id TEXT UNIQUE NOT NULL,
     geometry BLOB NOT NULL
@@ -134,40 +134,13 @@ CREATE TABLE boundaries (
 INSERT INTO gpkg_contents
 (table_name, data_type, identifier, description, srs_id)
 VALUES
-('boundaries', 'features', 'Lane Boundaries',
+('lane_boundaries', 'features', 'Lane Boundaries',
  'Shared lane boundary geometries', 100000);
 
 INSERT INTO gpkg_geometry_columns
 (table_name, column_name, geometry_type_name, srs_id, z, m)
 VALUES
-('boundaries', 'geometry', 'LINESTRING', 100000, 1, 0);
-
--- ---------------------------------------------------------------------------
--- Stop lines (LINESTRING)
--- ---------------------------------------------------------------------------
-
-CREATE TABLE stop_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stop_line_id TEXT UNIQUE NOT NULL,
-    lane_id TEXT NOT NULL,
-    s_position REAL NOT NULL,
-    geometry BLOB NOT NULL,
-    traffic_light_id TEXT,
-    allow_passing BOOLEAN DEFAULT FALSE,
-    name TEXT,
-    CHECK (s_position >= 0)
-);
-
-INSERT INTO gpkg_contents
-(table_name, data_type, identifier, description, srs_id)
-VALUES
-('stop_lines', 'features', 'Stop Lines',
- 'Lane stop line geometries', 100000);
-
-INSERT INTO gpkg_geometry_columns
-(table_name, column_name, geometry_type_name, srs_id, z, m)
-VALUES
-('stop_lines', 'geometry', 'LINESTRING', 100000, 1, 0);
+('lane_boundaries', 'geometry', 'LINESTRING', 100000, 1, 0);
 
 -- ============================================================================
 -- ATTRIBUTE TABLES (NON-SPATIAL)
@@ -183,8 +156,8 @@ CREATE TABLE lanes (
     right_boundary_id TEXT NOT NULL,
     right_boundary_inverted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (segment_id) REFERENCES segments(segment_id),
-    FOREIGN KEY (left_boundary_id) REFERENCES boundaries(boundary_id),
-    FOREIGN KEY (right_boundary_id) REFERENCES boundaries(boundary_id)
+    FOREIGN KEY (left_boundary_id) REFERENCES lane_boundaries(boundary_id),
+    FOREIGN KEY (right_boundary_id) REFERENCES lane_boundaries(boundary_id)
 );
 
 -- ---------------------------------------------------------------------------
@@ -232,7 +205,7 @@ CREATE TABLE lane_markings (
     material TEXT,
     lane_change_rule TEXT DEFAULT 'none',
     CHECK (s_start >= 0 AND s_end >= s_start),
-    FOREIGN KEY (boundary_id) REFERENCES boundaries(boundary_id)
+    FOREIGN KEY (boundary_id) REFERENCES lane_boundaries(boundary_id)
 );
 
 CREATE TABLE lane_marking_lines (

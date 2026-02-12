@@ -81,7 +81,7 @@ db.execute(
 
 # Feature table (geometry placeholder)
 db.execute(
-    "INSERT INTO boundaries (boundary_id, geometry) VALUES (?, ?)",
+    "INSERT INTO lane_boundaries (boundary_id, geometry) VALUES (?, ?)",
     ("b_left", b""),
 )
 
@@ -106,8 +106,8 @@ import sqlite3
 
 # Create LINESTRING geometry
 geom = ogr.Geometry(ogr.wkbLineString)
-geom.AddPoint(0.0, 3.5)
-geom.AddPoint(100.0, 3.5)
+geom.AddPoint(0.0, 3.5, 1)
+geom.AddPoint(100.0, 3.5, 1)
 
 # Spatial reference (SRS 0 = undefined)
 srs = osr.SpatialReference()
@@ -121,7 +121,7 @@ gpkg_blob = geom.ExportToGPKGBinary()
 # Insert into your table
 db = sqlite3.connect("my_map.gpkg")
 db.execute(
-    "INSERT INTO boundaries (boundary_id, geometry) VALUES (?, ?)",
+    "INSERT INTO lane_boundaries (boundary_id, geometry) VALUES (?, ?)",
     ("b_left", gpkg_blob),
 )
 db.commit()
@@ -161,7 +161,7 @@ fn main() -> rusqlite::Result<()> {
     )?;
 
     db.execute(
-        "INSERT INTO boundaries (boundary_id, geometry) VALUES (?1, ?2)",
+        "INSERT INTO lane_boundaries (boundary_id, geometry) VALUES (?1, ?2)",
         ("b_left", &[] as &[u8]),
     )?;
 

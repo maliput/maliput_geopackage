@@ -23,7 +23,7 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
       - [`maliput_metadata`](#maliput_metadata)
       - [`junctions`](#junctions)
       - [`segments`](#segments)
-      - [`boundaries`](#boundaries)
+      - [`lane_boundaries`](#lane_boundaries)
       - [`lanes`](#lanes)
     - [Connectivity Tables](#connectivity-tables)
       - [`branch_point_lanes`](#branch_point_lanes)
@@ -35,11 +35,10 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
       - [`traffic_lights`](#traffic_lights)
       - [`bulb_groups`](#bulb_groups)
       - [`bulbs`](#bulbs)
-      - [`stop_lines`](#stop_lines)
   - [Complete Example](#complete-example)
     - [Conceptual layout](#conceptual-layout)
     - [Junction and segment](#junction-and-segment)
-    - [Lane boundaries (LINESTRINGs)](#lane-boundaries-linestrings)
+    - [Lane boundaries](#lane-boundaries)
     - [Lanes](#lanes-1)
     - [Optional: lane markings (center dashed line)](#optional-lane-markings-center-dashed-line)
     - [Optional: Branch points for connectivity](#optional-branch-points-for-connectivity)
@@ -197,15 +196,15 @@ CREATE TABLE segments (
 
 ---
 
-#### `boundaries`
+#### `lane_boundaries`
 
 Stores shared boundary geometries. For GeoPackage compliance, geometries should be stored as BLOB (GeoPackageBinary format). These are referenced from `lanes` by ID to avoid duplicating identical boundary geometry when adjacent lanes share a common edge.
 
 ```sql
-CREATE TABLE boundaries (
+CREATE TABLE lane_boundaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     boundary_id TEXT UNIQUE NOT NULL,
-    geometry BLOB NOT NULL  -- GeoPackageBinary BLOB for spatial compliance
+    geom BLOB NOT NULL  -- GeoPackageBinary BLOB for spatial compliance
 );
 ```
 
@@ -213,9 +212,9 @@ CREATE TABLE boundaries (
 | -------- | ------ | ------------- |
 | `id` | INTEGER | Auto-incremented primary key (required for GeoPackage compliance) |
 | `boundary_id` | TEXT | Unique identifier for the boundary (human-friendly key) |
-| `geometry` | BLOB | GeoPackageBinary BLOB encoding of LINESTRINGZ geometry |
+| `geom` | BLOB | GeoPackageBinary BLOB encoding of LINESTRING geometry |
 
-Given boundaries are a spatial map feature, they need to be registered in the `gpkg_contents` and `gpkg_geometry_columns` tables:
+Given lane_boundaries are a spatial map feature, they need to be registered in the `gpkg_contents` and `gpkg_geometry_columns` tables:
 
 ```sql
 INSERT INTO gpkg_contents (
@@ -224,7 +223,7 @@ INSERT INTO gpkg_contents (
     identifier,
     srs_id
 ) VALUES (
-    'boundaries',
+    'lane_boundaries',
     'features',
     'Lane boundaries',
     100000      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
@@ -238,7 +237,7 @@ INSERT INTO gpkg_geometry_columns (
     z,
     m
 ) VALUES (
-    'boundaries',
+    'lane_boundaries',
     'geom',
     'LINESTRING',
     100000,      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
@@ -251,7 +250,7 @@ INSERT INTO gpkg_geometry_columns (
 
 #### `lanes`
 
-Defines lanes which reference left and right boundary geometries stored in the `boundaries` table.
+Defines lanes which reference left and right boundary geometries stored in the `lane_boundaries` table.
 
 ```sql
 CREATE TABLE lanes (
@@ -264,8 +263,8 @@ CREATE TABLE lanes (
     right_boundary_id TEXT NOT NULL,
     right_boundary_inverted BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (segment_id) REFERENCES segments(segment_id),
-    FOREIGN KEY (left_boundary_id) REFERENCES boundaries(boundary_id),
-    FOREIGN KEY (right_boundary_id) REFERENCES boundaries(boundary_id)
+    FOREIGN KEY (left_boundary_id) REFERENCES lane_boundaries(boundary_id),
+    FOREIGN KEY (right_boundary_id) REFERENCES lane_boundaries(boundary_id)
 );
 ```
 
@@ -275,9 +274,9 @@ CREATE TABLE lanes (
 | `segment_id` | TEXT | Parent segment ID |
 | `lane_type` | TEXT | Lane type: `driving`, `shoulder`, `parking`, etc. |
 | `direction` | TEXT | Travel direction: `forward`, `backward`, `bidirectional` |
-| `left_boundary_id` | TEXT | Reference to a `boundaries.boundary_id` |
+| `left_boundary_id` | TEXT | Reference to a `lane_boundaries.boundary_id` |
 | `left_boundary_inverted` | BOOLEAN | If TRUE, iterate left boundary points in reverse order |
-| `right_boundary_id` | TEXT | Reference to a `boundaries.boundary_id` |
+| `right_boundary_id` | TEXT | Reference to a `lane_boundaries.boundary_id` |
 | `right_boundary_inverted` | BOOLEAN | If TRUE, iterate right boundary points in reverse order |
 
 ---
@@ -333,7 +332,7 @@ BranchPoint "bp_end":
 
 Defines lateral adjacency between parallel lanes in the same segment.
 
-Adjacency between lanes is derivable from shared `boundaries` references. When two lanes share a common boundary such that one lane's `right_boundary_id` equals the other's `left_boundary_id`, they are adjacent (the second lane is on the right of the first). Likewise, when one lane's `left_boundary_id` equals another's `right_boundary_id`, the second lane is on the left of the first.
+Adjacency between lanes is derivable from shared `lane_boundaries` references. When two lanes share a common boundary such that one lane's `right_boundary_id` equals the other's `left_boundary_id`, they are adjacent (the second lane is on the right of the first). Likewise, when one lane's `left_boundary_id` equals another's `right_boundary_id`, the second lane is on the left of the first.
 
 Because adjacency can be computed from `lanes.left_boundary_id` / `lanes.right_boundary_id`, we avoid duplicating this data in a table. Instead provide a read-only SQL `VIEW` that derives the adjacency on demand:
 
@@ -368,7 +367,7 @@ Road markings describe the visual appearance of lane boundaries. They provide in
 
 #### `lane_markings`
 
-Stores lane marking information associated with boundaries. Lane markings can vary along the length of a boundary (s-coordinate).
+Stores lane marking information associated with lane_boundaries. Lane markings can vary along the length of a boundary (s-coordinate).
 
 ```sql
 CREATE TABLE lane_markings (
@@ -383,7 +382,7 @@ CREATE TABLE lane_markings (
     height REAL,
     material TEXT,
     lane_change_rule TEXT DEFAULT 'none',
-    FOREIGN KEY (boundary_id) REFERENCES boundaries(boundary_id),
+    FOREIGN KEY (boundary_id) REFERENCES lane_boundaries(boundary_id),
     CHECK (s_start >= 0 AND s_end >= s_start)
 );
 ```
@@ -453,7 +452,7 @@ CREATE TABLE lane_marking_lines (
 
 **Relationship to Lanes:**
 
-Lane markings are associated with **boundaries**, not directly with lanes. Here's how they connect:
+Lane markings are associated with **lane_boundaries**, not directly with lanes. Here's how they connect:
 
 ```text
 Lane
@@ -604,77 +603,6 @@ Bulbs have dynamic states managed by the traffic control system (phase provider)
 
 ---
 
-#### `stop_lines`
-
-Stop lines are regulatory markings where vehicles must stop (e.g., at stop signs or red lights). They are line segments at specific positions on lanes.
-
-```sql
-CREATE TABLE stop_lines (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    stop_line_id TEXT UNIQUE NOT NULL,
-    lane_id TEXT NOT NULL,
-    s_position REAL NOT NULL,
-    geometry BLOB NOT NULL,
-    traffic_light_id TEXT,
-    allow_passing BOOLEAN DEFAULT FALSE,
-    name TEXT,
-    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id),
-    FOREIGN KEY (traffic_light_id) REFERENCES traffic_lights(traffic_light_id),
-    CHECK (s_position >= 0)
-);
-```
-
-| Column             | Type    | Description                                                                                   |
-| ------------------ | ------- | --------------------------------------------------------------------------------------------- |
-| `id`               | INTEGER | Auto-incremented primary key (required for GeoPackage compliance)                             |
-| `stop_line_id`     | TEXT    | Unique identifier for the stop line (human-friendly key)                                      |
-| `lane_id`          | TEXT    | Lane where the stop line is located                                                           |
-| `s_position`       | REAL    | Longitudinal position (s-coordinate) along the lane in meters                                 |
-| `geometry`         | BLOB    | GeoPackageBinary BLOB encoding of LINESTRINGZ geometry of the stop line across the lane width |
-| `traffic_light_id` | TEXT    | Associated traffic light ID (optional, for controlled intersections)                          |
-| `allow_passing`    | BOOLEAN | Whether vehicles may pass when no traffic light is active                                     |
-| `name`             | TEXT    | Human-readable name (e.g., 'Stop at Intersection A')                                          |
-
-**Stop Line Types:**
-
-- **Controlled by traffic light**: Reference a `traffic_light_id`. Vehicles stop when the light is red.
-- **Regulatory stop**: No traffic light reference. Vehicles always must stop (stop sign).
-- **Yield line**: Set `allow_passing=TRUE` to indicate vehicles may proceed cautiously.
-
-Given stop lines are a spatial map feature, they need to be registered in the `gpkg_contents` and `gpkg_geometry_columns` tables:
-
-```sql
-INSERT INTO gpkg_contents (
-    table_name,
-    data_type,
-    identifier,
-    srs_id
-) VALUES (
-    'stop_lines',
-    'features',
-    'Stop Lines',
-    100000      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
-);
-
-INSERT INTO gpkg_geometry_columns (
-    table_name,
-    column_name,
-    geometry_type_name,
-    srs_id,
-    z,
-    m
-) VALUES (
-    'stop_lines',
-    'geom',
-    'LINESTRING',
-    100000,      -- Must be the same as the one chosen for gpkg_spatial_ref_sys
-    1,           -- We want z values
-    0
-);
-```
-
----
-
 ## Complete Example
 
 Below is a two-lane road segment using the schema.
@@ -694,7 +622,7 @@ x: 0 ─────────────────────────
 - One junction
 - One segment
 - Two lanes
-- Three boundaries
+- Three lane boundaries
 - Lanes share the center boundary
 
 ### Junction and segment
@@ -707,32 +635,32 @@ INSERT INTO segments (segment_id, junction_id, name)
 VALUES ('s1', 'j1', 'Straight segment');
 ```
 
-### Lane boundaries (LINESTRINGs)
+### Lane boundaries
 
-We create three boundaries: `b_left_outer`, `b_center` and `b_right_outer`. Adjacency is inferred because two lanes reference the same boundary ID.
+We create three lane_boundaries: `b_left_outer`, `b_center` and `b_right_outer`. Adjacency is inferred because two lanes reference the same boundary ID.
 
 ```sql
 -- Left outer boundary
-INSERT INTO boundaries (boundary_id, geometry)
+INSERT INTO lane_boundaries (boundary_id, geometry)
 VALUES (
   'b_left_outer',
-  -- LINESTRING(0 3.5, 100 3.5)
+  -- LINESTRING(0 3.5 1.0, 100 3.5 1.0)
   -- In real code: convert WKT → GeoPackageBinary
-  ST_GeomFromText('LINESTRING(0 3.5, 100 3.5)', 0)
+  ST_GeomFromText('LINESTRING(0 3.5 1.0, 100 3.5 1.0)', 0)
 );
 
 -- Center boundary (shared)
-INSERT INTO boundaries (boundary_id, geometry)
+INSERT INTO lane_boundaries (boundary_id, geometry)
 VALUES (
   'b_center',
-  ST_GeomFromText('LINESTRING(0 0.0, 100 0.0)', 0)
+  ST_GeomFromText('LINESTRING(0 0.0 1.0, 100 0.0 1.0)', 0)
 );
 
 -- Right outer boundary
-INSERT INTO boundaries (boundary_id, geometry)
+INSERT INTO lane_boundaries (boundary_id, geometry)
 VALUES (
   'b_right_outer',
-  ST_GeomFromText('LINESTRING(0 -3.5, 100 -3.5)', 0)
+  ST_GeomFromText('LINESTRING(0 -3.5 1.0, 100 -3.5 1.0)', 0)
 );
 ```
 
