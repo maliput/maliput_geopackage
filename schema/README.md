@@ -202,7 +202,7 @@ Stores shared boundary geometries. For GeoPackage compliance, geometries should 
 
 ```sql
 CREATE TABLE lane_boundaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     boundary_id TEXT UNIQUE NOT NULL,
     geom BLOB NOT NULL  -- GeoPackageBinary BLOB for spatial compliance
 );
