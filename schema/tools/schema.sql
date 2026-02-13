@@ -126,7 +126,7 @@ CREATE TABLE segments (
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE lane_boundaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     boundary_id TEXT UNIQUE NOT NULL,
     geometry BLOB NOT NULL
 );
@@ -159,6 +159,24 @@ CREATE TABLE lanes (
     FOREIGN KEY (left_boundary_id) REFERENCES lane_boundaries(boundary_id),
     FOREIGN KEY (right_boundary_id) REFERENCES lane_boundaries(boundary_id)
 );
+
+CREATE TABLE lane_polygons (
+    id INTEGER PRIMARY KEY,
+    lane_id TEXT UNIQUE NOT NULL,
+    geometry BLOB NOT NULL,
+    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id)
+);
+
+INSERT INTO gpkg_contents
+(table_name, data_type, identifier, description, srs_id)
+VALUES
+('lane_polygons', 'features', 'Lane Polygons',
+ 'Derived lane surface polygons', 100000);
+
+INSERT INTO gpkg_geometry_columns
+(table_name, column_name, geometry_type_name, srs_id, z, m)
+VALUES
+('lane_polygons', 'geometry', 'POLYGON', 100000, 1, 0);
 
 -- ---------------------------------------------------------------------------
 -- Connectivity

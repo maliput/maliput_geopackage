@@ -279,6 +279,28 @@ CREATE TABLE lanes (
 | `right_boundary_id` | TEXT | Reference to a `lane_boundaries.boundary_id` |
 | `right_boundary_inverted` | BOOLEAN | If TRUE, iterate right boundary points in reverse order |
 
+To be able to visualize lane filling in tools like QGIS, the lane_polygon table is added:
+
+```sql
+CREATE TABLE lane_polygons (
+    id INTEGER PRIMARY KEY,
+    lane_id TEXT UNIQUE NOT NULL,
+    geometry BLOB NOT NULL,
+    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id)
+);
+
+INSERT INTO gpkg_contents
+(table_name, data_type, identifier, description, srs_id)
+VALUES
+('lane_polygons', 'features', 'Lane Polygons',
+ 'Derived lane surface polygons', 100000);
+
+INSERT INTO gpkg_geometry_columns
+(table_name, column_name, geometry_type_name, srs_id, z, m)
+VALUES
+('lane_polygons', 'geometry', 'POLYGON', 100000, 1, 0);
+```
+
 ---
 
 ### Connectivity Tables
