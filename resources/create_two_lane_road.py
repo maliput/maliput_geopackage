@@ -170,30 +170,6 @@ def main():
             ),
         )
 
-        lane_1_poly = polygon_to_gpkg([
-            (0.0, +LANE_HALF_WIDTH),
-            (ROAD_LENGTH, +LANE_HALF_WIDTH),
-            (ROAD_LENGTH, 0.0),
-            (0.0, 0.0),
-        ])
-
-        lane_2_poly = polygon_to_gpkg([
-            (0.0, 0.0),
-            (ROAD_LENGTH, 0.0),
-            (ROAD_LENGTH, -LANE_HALF_WIDTH),
-            (0.0, -LANE_HALF_WIDTH),
-        ])
-
-        db.execute(
-            "INSERT INTO lane_polygons (lane_id, geometry) VALUES (?, ?)",
-            ("lane_1", lane_1_poly),
-        )
-
-        db.execute(
-            "INSERT INTO lane_polygons (lane_id, geometry) VALUES (?, ?)",
-            ("lane_2", lane_2_poly),
-        )
-
         # ---------------------------------------------------------------------
         # Connectivity
         # ---------------------------------------------------------------------
