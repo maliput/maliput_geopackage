@@ -30,12 +30,12 @@
 #include "maliput_geopackage/geopackage/geopackage_parser.h"
 
 #include <cstring>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include <maliput/common/maliput_throw.h>
 #include <maliput/math/vector.h>
 #include <sqlite3.h>
 
@@ -109,11 +109,9 @@ class SqliteStatement {
 };
 
 std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, int bytes) {
-  if (data == nullptr ||
-      bytes < 21) {  // Minimum: 8 (header) + 1 (byte order) + 4 (type) + 4 (num_points) + 4 (at least 1 point: 2*8)
-    std::cerr << "ParseGeopackageGeometry: Invalid data size " << bytes << std::endl;
-    return {};
-  }
+  // Minimum: 8 (header) + 1 (byte order) + 4 (type) + 4 (num_points) + 4 (at least 1 point: 2*8)
+  MALIPUT_VALIDATE(data != nullptr, "GeoPackage geometry data is null.");
+  MALIPUT_VALIDATE(bytes >= 21, "GeoPackage geometry data size " + std::to_string(bytes) + " is too small.");
 
   const uint8_t* ptr = static_cast<const uint8_t*>(data);
   const uint8_t* end = ptr + bytes;
@@ -121,10 +119,8 @@ std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, in
   // Skip GeoPackage Header (8 bytes for no envelope, flags=0x01)
   // Magic (2), Version (1), Flags (1), SRS_ID (4)
   ptr += 8;
-  if (ptr > end - 9) {  // Need at least 9 more bytes (1 + 4 + 4)
-    std::cerr << "ParseGeopackageGeometry: Not enough data after header" << std::endl;
-    return {};
-  }
+  // Need at least 9 more bytes (1 + 4 + 4)
+  MALIPUT_VALIDATE(ptr <= end - 9, "Not enough data in GeoPackage geometry after header.");
 
   // WKB Geometry
   // Byte order (1 byte)
@@ -133,16 +129,11 @@ std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, in
 
   // We assume Little Endian (1) as per the python script generator.
   // A full implementation would handle Big Endian (0).
-  if (byte_order != 1) {
-    std::cerr << "ParseGeopackageGeometry: Unsupported byte order " << static_cast<int>(byte_order) << std::endl;
-    return {};
-  }
+  MALIPUT_VALIDATE(byte_order == 1, "Unsupported byte order " + std::to_string(static_cast<int>(byte_order)) +
+                                        " in GeoPackage geometry.");
 
   // Type (4 bytes)
-  if (ptr > end - 4) {
-    std::cerr << "ParseGeopackageGeometry: Not enough data for type" << std::endl;
-    return {};
-  }
+  MALIPUT_VALIDATE(ptr <= end - 4, "Not enough data in GeoPackage geometry for WKB type.");
   uint32_t wkb_type;
   std::memcpy(&wkb_type, ptr, 4);
   ptr += 4;
@@ -152,31 +143,20 @@ std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, in
   uint32_t base_type = wkb_type & 0x0FFFFFFF;
 
   // wkbLineString = 2
-  if (base_type != 2) {
-    std::cerr << "ParseGeopackageGeometry: Unsupported geometry type " << base_type << " (raw type: " << wkb_type << ")"
-              << std::endl;
-    return {};
-  }
+  MALIPUT_VALIDATE(base_type == 2, "Unsupported WKB geometry type " + std::to_string(base_type) +
+                                       " (raw type: " + std::to_string(wkb_type) + ").");
 
   // Num points (4 bytes)
-  if (ptr > end - 4) {
-    std::cerr << "ParseGeopackageGeometry: Not enough data for num_points" << std::endl;
-    return {};
-  }
+  MALIPUT_VALIDATE(ptr <= end - 4, "Not enough data in GeoPackage geometry for point count.");
   uint32_t num_points;
   std::memcpy(&num_points, ptr, 4);
   ptr += 4;
 
   // Validate we have enough data for all points
-  if (num_points > 1000000) {  // Sanity check
-    std::cerr << "ParseGeopackageGeometry: Unreasonable number of points " << num_points << std::endl;
-    return {};
-  }
-
-  if (ptr > end - (static_cast<int>(num_points) * 16)) {
-    std::cerr << "ParseGeopackageGeometry: Not enough data for " << num_points << " points" << std::endl;
-    return {};
-  }
+  MALIPUT_VALIDATE(num_points <= 1000000, "Unreasonable number of points " + std::to_string(num_points) +
+                                              " in GeoPackage geometry.");  // Sanity check
+  MALIPUT_VALIDATE(ptr <= end - (static_cast<int>(num_points) * 16),
+                   "Not enough data in GeoPackage geometry for " + std::to_string(num_points) + " points.");
 
   std::vector<maliput::math::Vector3> points;
   points.reserve(num_points);
@@ -190,7 +170,6 @@ std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, in
     points.emplace_back(x, y, 0.0);
   }
 
-  std::cerr << "ParseGeopackageGeometry: Successfully parsed " << num_points << " points" << std::endl;
   return points;
 }
 
@@ -207,7 +186,6 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
       const std::string name = stmt.GetColumnText(1);
       maliput_sparse::parser::Junction junction;
       junction.id = maliput_sparse::parser::Junction::Id(id);
-      std::cerr << "Parsed Junction: " << id << " (" << name << ")" << std::endl;
       junctions_.emplace(junction.id, junction);
     }
   }
@@ -224,12 +202,9 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
       segment.id = maliput_sparse::parser::Segment::Id(id);
 
       auto junction_it = junctions_.find(maliput_sparse::parser::Junction::Id(junction_id));
-      if (junction_it != junctions_.end()) {
-        std::cerr << "Parsed Segment: " << id << " (" << name << ")" << std::endl;
-        junction_it->second.segments.emplace(segment.id, segment);
-      } else {
-        std::cerr << "Warning: Segment " << id << " references unknown junction " << junction_id << std::endl;
-      }
+      MALIPUT_VALIDATE(junction_it != junctions_.end(),
+                       "Segment " + id + " references unknown junction " + junction_id + ".");
+      junction_it->second.segments.emplace(segment.id, segment);
     }
   }
 
@@ -241,7 +216,6 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
       std::string id = stmt.GetColumnText(0);
       const void* blob = stmt.GetColumnBlob(1);
       int bytes = stmt.GetColumnBytes(1);
-      std::cerr << "Parsed Boundary: " << id << std::endl;
       boundaries.emplace(id, maliput_sparse::geometry::LineString3d(ParseGeopackageGeometry(blob, bytes)));
     }
   }
@@ -255,11 +229,10 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
       const std::string left_boundary_id = stmt.GetColumnText(2);
       const std::string right_boundary_id = stmt.GetColumnText(3);
 
-      if (boundaries.find(left_boundary_id) == boundaries.end() ||
-          boundaries.find(right_boundary_id) == boundaries.end()) {
-        std::cerr << "Warning: Lane " << id << " references unknown boundaries." << std::endl;
-        continue;
-      }
+      MALIPUT_VALIDATE(boundaries.find(left_boundary_id) != boundaries.end(),
+                       "Lane " + id + " references unknown left boundary " + left_boundary_id + ".");
+      MALIPUT_VALIDATE(boundaries.find(right_boundary_id) != boundaries.end(),
+                       "Lane " + id + " references unknown right boundary " + right_boundary_id + ".");
 
       maliput_sparse::parser::Lane lane{
           maliput_sparse::parser::Lane::Id(id),
@@ -282,9 +255,7 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
           break;
         }
       }
-      if (!found) {
-        std::cerr << "Warning: Lane " << id << " references unknown segment " << segment_id << std::endl;
-      }
+      MALIPUT_VALIDATE(found, "Lane " + id + " references unknown segment " + segment_id + ".");
     }
   }
 
