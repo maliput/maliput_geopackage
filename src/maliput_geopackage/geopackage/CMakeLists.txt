@@ -26,6 +26,7 @@ target_link_libraries(geopackage
     maliput::math
     maliput_sparse::geometry
     maliput_sparse::parser
+    SQLite::SQLite3
 )
 
 install(TARGETS geopackage

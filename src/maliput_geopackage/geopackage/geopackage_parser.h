@@ -64,6 +64,9 @@ class GeoPackageParser : public maliput_sparse::parser::Parser {
 
   /// Gets connections between the map's lanes.
   const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
+
+  std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction> junctions_;
+  std::vector<maliput_sparse::parser::Connection> connections_;
 };
 
 }  // namespace geopackage
