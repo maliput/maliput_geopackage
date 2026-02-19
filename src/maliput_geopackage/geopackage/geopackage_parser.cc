@@ -33,8 +33,10 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
+#include <maliput/common/logger.h>
 #include <maliput/common/maliput_throw.h>
 #include <maliput/math/vector.h>
 #include <sqlite3.h>
@@ -220,11 +222,13 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
     }
   }
 
+  std::unordered_set<std::string> lane_ids;
   // 3. Parse Lanes
   {
     SqliteStatement stmt(db.get(), "SELECT lane_id, segment_id, left_boundary_id, right_boundary_id FROM lanes");
     while (stmt.Step()) {
       const std::string id = stmt.GetColumnText(0);
+      lane_ids.insert(id);
       const std::string segment_id = stmt.GetColumnText(1);
       const std::string left_boundary_id = stmt.GetColumnText(2);
       const std::string right_boundary_id = stmt.GetColumnText(3);
@@ -259,8 +263,130 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
     }
   }
 
-  // 4. Parse Connections (Branch Points) - Skipped for now as struct definition is mismatched.
-  // TODO: Implement connection parsing once maliput_sparse::parser::Connection definition is confirmed.
+  // 3.5 Parse Adjacency and Reorder Lanes
+  {
+    SqliteStatement stmt(db.get(), "SELECT lane_id, adjacent_lane_id, side FROM view_adjacent_lanes");
+    std::unordered_map<std::string, std::string> left_adj;
+    std::unordered_map<std::string, std::string> right_adj;
+
+    while (stmt.Step()) {
+      const std::string lane_id = stmt.GetColumnText(0);
+      const std::string adj_id = stmt.GetColumnText(1);
+      const std::string side = stmt.GetColumnText(2);
+
+      if (side == "left") {
+        left_adj[lane_id] = adj_id;
+      } else if (side == "right") {
+        right_adj[lane_id] = adj_id;
+      }
+    }
+
+    for (auto& [j_id, junction] : junctions_) {
+      for (auto& [s_id, segment] : junction.segments) {
+        // Update adjacency
+        for (auto& lane : segment.lanes) {
+          const std::string l_id = lane.id;
+          if (left_adj.find(l_id) != left_adj.end()) {
+            lane.left_lane_id = left_adj[l_id];
+          }
+          if (right_adj.find(l_id) != right_adj.end()) {
+            lane.right_lane_id = right_adj[l_id];
+          }
+        }
+
+        // Reorder lanes: Rightmost first
+        if (segment.lanes.size() > 1) {
+          std::vector<maliput_sparse::parser::Lane> ordered_lanes;
+          ordered_lanes.reserve(segment.lanes.size());
+
+          std::unordered_map<std::string, const maliput_sparse::parser::Lane*> lane_map;
+          for (const auto& lane : segment.lanes) {
+            lane_map[lane.id] = &lane;
+          }
+
+          const maliput_sparse::parser::Lane* current = nullptr;
+          // Find the rightmost lane (no right_lane_id)
+          for (const auto& lane : segment.lanes) {
+            if (!lane.right_lane_id.has_value()) {
+              current = &lane;
+              break;
+            }
+          }
+
+          if (current) {
+            while (current) {
+              ordered_lanes.push_back(*current);
+              if (current->left_lane_id.has_value()) {
+                auto it = lane_map.find(current->left_lane_id.value());
+                current = (it != lane_map.end()) ? it->second : nullptr;
+              } else {
+                current = nullptr;
+              }
+            }
+
+            if (ordered_lanes.size() == segment.lanes.size()) {
+              segment.lanes = std::move(ordered_lanes);
+            } else {
+              maliput::log()->warn("Failed to strictly reorder lanes in segment ", s_id, ". Expected ",
+                                   segment.lanes.size(), " lanes, found ", ordered_lanes.size(), " in chain.");
+            }
+          } else {
+            maliput::log()->warn("Could not find rightmost lane in segment ", s_id);
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Parse Connections (Branch Points)
+  {
+    struct BranchPointLane {
+      std::string lane_id;
+      maliput_sparse::parser::LaneEnd::Which end;
+      std::string side;
+    };
+    std::unordered_map<std::string, std::vector<BranchPointLane>> branch_points;
+
+    SqliteStatement stmt(db.get(), "SELECT branch_point_id, lane_id, lane_end, side FROM branch_point_lanes");
+    while (stmt.Step()) {
+      const std::string branch_point_id = stmt.GetColumnText(0);
+      const std::string lane_id = stmt.GetColumnText(1);
+      const std::string end_str = stmt.GetColumnText(2);
+      const std::string side = stmt.GetColumnText(3);
+
+      MALIPUT_VALIDATE(lane_ids.find(lane_id) != lane_ids.end(), "Connection references unknown lane " + lane_id + ".");
+
+      maliput_sparse::parser::LaneEnd::Which end;
+      if (end_str == "Start" || end_str == "start") {
+        end = maliput_sparse::parser::LaneEnd::Which::kStart;
+      } else if (end_str == "End" || end_str == "Finish" || end_str == "finish") {
+        end = maliput_sparse::parser::LaneEnd::Which::kFinish;
+      } else {
+        MALIPUT_THROW_MESSAGE("Unknown lane end '" + end_str + "' in branch_point_lanes.");
+      }
+
+      branch_points[branch_point_id].push_back({lane_id, end, side});
+    }
+
+    for (const auto& [bp_id, bp_lanes] : branch_points) {
+      std::vector<BranchPointLane> side_a;
+      std::vector<BranchPointLane> side_b;
+      for (const auto& bpl : bp_lanes) {
+        if (bpl.side == "a") {
+          side_a.push_back(bpl);
+        } else if (bpl.side == "b") {
+          side_b.push_back(bpl);
+        }
+      }
+
+      for (const auto& a : side_a) {
+        for (const auto& b : side_b) {
+          connections_.push_back({{maliput_sparse::parser::Lane::Id(a.lane_id), a.end},
+                                  {maliput_sparse::parser::Lane::Id(b.lane_id), b.end}});
+        }
+      }
+    }
+  }
 }
 
 GeoPackageParser::~GeoPackageParser() = default;
