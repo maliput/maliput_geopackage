@@ -110,6 +110,18 @@ std::unordered_map<std::string, GPKGLaneBoundary> GeoPackageParser::ParseBoundar
 }
 
 std::vector<maliput::math::Vector3> GeoPackageParser::ParseGeopackageGeometry(const void* data, int bytes) const {
+  // Parses GeoPackage 1.0.0+ standard geometry blobs.
+  // Format: [GeoPackage Header] + [WKB Data]
+  // GeoPackage Header (8 bytes minimum):
+  //   - Bytes 0-1: Magic "GP"
+  //   - Byte 2: Version (0 = v1.0.0+)
+  //   - Byte 3: Flags (endianness, envelope type, etc.)
+  //   - Bytes 4-7: SRID (SRS ID)
+  //   - Optional: Envelope (0-64 bytes depending on type)
+  // WKB Data: Standard ISO SQL/MM WKB format (little-endian only)
+  //   - Only LINESTRING geometries (type 2) are currently supported
+  //   - Z-coordinates are optional based on WKB type flags
+
   MALIPUT_VALIDATE(data != nullptr, "GeoPackage geometry data is null.");
   MALIPUT_VALIDATE(bytes >= 8, "GeoPackage geometry blob too small.");
 

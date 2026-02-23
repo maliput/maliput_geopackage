@@ -149,9 +149,16 @@ class GeoPackageParser {
   std::unordered_map<std::string, GPKGLaneBoundary> ParseBoundaries(const SqliteDatabase& db) const;
 
   /// Converts a GeoPackage geometry blob to a vector of Vector3 points.
+  /// Supports GeoPackage 1.0.0+ WKB format with LINESTRING geometries.
+  /// The implementation follows the GeoPackage standard encoding:
+  /// - GeoPackage magic header ("GP")
+  /// - Envelope support (XY, XYZ, XYM, XYZM)
+  /// - Little-endian WKB (Well-Known Binary) encoding
+  /// - LINESTRING geometry type only
   /// @param data The data blob containing the geometry.
   /// @param bytes The size of the data blob.
   /// @returns A vector of Vector3 points representing the geometry.
+  /// @throws std::runtime_error if the geometry format is invalid or unsupported.
   std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, int bytes) const;
 
   /// Parses the lanes from the GeoPackage.
