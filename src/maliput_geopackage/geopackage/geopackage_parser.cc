@@ -41,25 +41,12 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
   // Open the database connection
   auto db = LoadDatabase(gpkg_file_path);
 
-  // Parse metadata
   maliput_metadata_ = ParseMetadata(db);
-
-  // Parse junctions
   junctions_ = ParseJunctions(db);
-
-  // Parse segments
   segments_ = ParseSegments(db);
-
-  // Parse lane boundaries
   lane_boundaries_ = ParseBoundaries(db);
-
-  // Parse lanes
   lanes_ = ParseLanes(db);
-
-  // Parse branch points
   branch_point_lanes_ = ParseBranchPoints(db);
-
-  // Parse adjacent lines
   adjacent_lanes_ = ParseAdjacentLanes(db);
 }
 
