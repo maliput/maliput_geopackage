@@ -29,6 +29,7 @@ cc_library(
     deps = [
         "@maliput//:common",
         "@maliput_sparse//:parser",
+        "@sqlite3",
     ],
 )
 
@@ -44,6 +45,7 @@ cc_library(
         "@maliput//:math",
         "@maliput_sparse//:geometry",
         "@maliput_sparse//:parser",
+        "@sqlite3",
     ],
 )
 
