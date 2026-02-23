@@ -33,7 +33,6 @@ cc_test(
     deps = [
         "//:geopackage",
         "@googletest//:gtest_main",
-        "@sqlite3",
     ],
 )
 
@@ -46,6 +45,5 @@ cc_test(
     deps = [
         "//:geopackage",
         "@googletest//:gtest_main",
-        "@sqlite3",
     ],
 )

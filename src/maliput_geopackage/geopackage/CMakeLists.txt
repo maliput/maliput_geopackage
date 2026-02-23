@@ -5,6 +5,7 @@
 add_library(geopackage
   geopackage_parser.cc
   geopackage_manager.cc
+  sqlite_helpers.cc
 )
 
 add_library(maliput_geopackage::geopackage ALIAS geopackage)

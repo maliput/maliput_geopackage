@@ -38,22 +38,10 @@
 // RAII wrapper for sqlite3 database connection.
 class SqliteDatabase {
  public:
-  explicit SqliteDatabase(const std::string& db_path) {
-    const int rc = sqlite3_open_v2(db_path.c_str(), &db_, SQLITE_OPEN_READONLY, nullptr);
-    if (rc != SQLITE_OK) {
-      const std::string err_msg = sqlite3_errmsg(db_);
-      sqlite3_close(db_);
-      MALIPUT_THROW_MESSAGE("Failed to open GeoPackage at " + db_path + ": " + err_msg);
-    }
-  }
+  explicit SqliteDatabase(const std::string& db_path);
+  ~SqliteDatabase();
 
-  ~SqliteDatabase() {
-    if (db_) {
-      sqlite3_close(db_);
-    }
-  }
-
-  sqlite3* get() const { return db_; }
+  sqlite3* get() const;
 
  private:
   sqlite3* db_{nullptr};
@@ -62,42 +50,15 @@ class SqliteDatabase {
 // RAII wrapper for sqlite3 statement.
 class SqliteStatement {
  public:
-  SqliteStatement(sqlite3* db, const std::string& query) {
-    const int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt_, nullptr);
-    if (rc != SQLITE_OK) {
-      const std::string err_msg = sqlite3_errmsg(db);
-      MALIPUT_THROW_MESSAGE("Failed to prepare query '" + query + "': " + err_msg);
-    }
-  }
+  SqliteStatement(sqlite3* db, const std::string& query);
+  ~SqliteStatement();
 
-  ~SqliteStatement() {
-    if (stmt_) {
-      sqlite3_finalize(stmt_);
-    }
-  }
+  bool Step();
 
-  bool Step() {
-    const int rc = sqlite3_step(stmt_);
-    if (rc == SQLITE_ROW) {
-      return true;
-    } else if (rc == SQLITE_DONE) {
-      return false;
-    } else {
-      const std::string err_msg = sqlite3_errmsg(sqlite3_db_handle(stmt_));
-      MALIPUT_THROW_MESSAGE("Failed to step query: " + err_msg);
-    }
-  }
-
-  std::string GetColumnText(int col) {
-    const unsigned char* text = sqlite3_column_text(stmt_, col);
-    return text ? std::string(reinterpret_cast<const char*>(text)) : "";
-  }
-
-  int GetColumnInt(int col) { return sqlite3_column_int(stmt_, col); }
-
-  const void* GetColumnBlob(int col) { return sqlite3_column_blob(stmt_, col); }
-
-  int GetColumnBytes(int col) { return sqlite3_column_bytes(stmt_, col); }
+  std::string GetColumnText(int col);
+  int GetColumnInt(int col);
+  const void* GetColumnBlob(int col);
+  int GetColumnBytes(int col);
 
  private:
   sqlite3_stmt* stmt_{nullptr};
