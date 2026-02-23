@@ -74,35 +74,37 @@ std::unordered_map<std::string, std::string> GeoPackageParser::ParseMetadata(con
   return metadata;
 }
 
-std::vector<GPKGJunction> GeoPackageParser::ParseJunctions(const SqliteDatabase& db) const {
+std::unordered_map<std::string, GPKGJunction> GeoPackageParser::ParseJunctions(const SqliteDatabase& db) const {
   // Parse junctions and store
   SqliteStatement stmt(db.get(), "SELECT junction_id, name FROM junctions");
-  std::vector<GPKGJunction> junctions;
+  std::unordered_map<std::string, GPKGJunction> junctions;
   while (stmt.Step()) {
-    junctions.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1)});
+    std::string id = stmt.GetColumnText(0);
+    junctions[id] = {stmt.GetColumnText(1)};
   }
   return junctions;
 }
 
-std::vector<GPKGSegment> GeoPackageParser::ParseSegments(const SqliteDatabase& db) const {
+std::unordered_map<std::string, GPKGSegment> GeoPackageParser::ParseSegments(const SqliteDatabase& db) const {
   // Parse segments and store
   SqliteStatement stmt(db.get(), "SELECT segment_id, junction_id, name FROM segments");
-  std::vector<GPKGSegment> segments;
+  std::unordered_map<std::string, GPKGSegment> segments;
   while (stmt.Step()) {
-    segments.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2)});
+    std::string id = stmt.GetColumnText(0);
+    segments[id] = {stmt.GetColumnText(1), stmt.GetColumnText(2)};
   }
   return segments;
 }
 
-std::vector<GPKGLaneBoundary> GeoPackageParser::ParseBoundaries(const SqliteDatabase& db) const {
+std::unordered_map<std::string, GPKGLaneBoundary> GeoPackageParser::ParseBoundaries(const SqliteDatabase& db) const {
   // Parse lane_boundaries and store
   SqliteStatement stmt(db.get(), "SELECT boundary_id, geometry FROM lane_boundaries");
-  std::vector<GPKGLaneBoundary> boundaries;
+  std::unordered_map<std::string, GPKGLaneBoundary> boundaries;
   while (stmt.Step()) {
     std::string id = stmt.GetColumnText(0);
     const void* blob = stmt.GetColumnBlob(1);
     int bytes = stmt.GetColumnBytes(1);
-    boundaries.push_back({id, ParseGeopackageGeometry(blob, bytes)});
+    boundaries[id] = {ParseGeopackageGeometry(blob, bytes)};
   }
   return boundaries;
 }
@@ -192,39 +194,42 @@ std::vector<maliput::math::Vector3> GeoPackageParser::ParseGeopackageGeometry(co
   return points;
 }
 
-std::vector<GPKGLane> GeoPackageParser::ParseLanes(const SqliteDatabase& db) const {
+std::unordered_map<std::string, GPKGLane> GeoPackageParser::ParseLanes(const SqliteDatabase& db) const {
   // Parse lanes and store
   SqliteStatement stmt(db.get(),
                        "SELECT lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
                        "right_boundary_id, right_boundary_inverted FROM lanes");
 
-  std::vector<GPKGLane> lanes;
+  std::unordered_map<std::string, GPKGLane> lanes;
   while (stmt.Step()) {
-    lanes.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2), stmt.GetColumnText(3),
-                     stmt.GetColumnText(4), stmt.GetColumnInt(5) != 0, stmt.GetColumnText(6),
-                     stmt.GetColumnInt(7) != 0});
+    std::string id = stmt.GetColumnText(0);
+    lanes[id] = {stmt.GetColumnText(1),     stmt.GetColumnText(2), stmt.GetColumnText(3),    stmt.GetColumnText(4),
+                 stmt.GetColumnInt(5) != 0, stmt.GetColumnText(6), stmt.GetColumnInt(7) != 0};
   }
   return lanes;
 }
 
-std::vector<GPKGBranchPointLane> GeoPackageParser::ParseBranchPoints(const SqliteDatabase& db) const {
+std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> GeoPackageParser::ParseBranchPoints(
+    const SqliteDatabase& db) const {
   // Parse branch points and build connections
   SqliteStatement stmt(db.get(), "SELECT branch_point_id, lane_id, side, lane_end FROM branch_point_lanes");
 
-  std::vector<GPKGBranchPointLane> gpkp_connections;
+  std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> gpkp_connections;
   while (stmt.Step()) {
-    gpkp_connections.push_back(
-        {stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2), stmt.GetColumnText(3)});
+    std::string id = stmt.GetColumnText(0);
+    gpkp_connections[id].push_back({stmt.GetColumnText(1), stmt.GetColumnText(2), stmt.GetColumnText(3)});
   }
   return gpkp_connections;
 }
 
-std::vector<GPKGAdjacentLane> GeoPackageParser::ParseAdjacentLanes(const SqliteDatabase& db) const {
+std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> GeoPackageParser::ParseAdjacentLanes(
+    const SqliteDatabase& db) const {
   // Parse adjacent lanes view
   SqliteStatement stmt(db.get(), "SELECT lane_id, adjacent_lane_id, side FROM view_adjacent_lanes");
-  std::vector<GPKGAdjacentLane> adjacent_lanes;
+  std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> adjacent_lanes;
   while (stmt.Step()) {
-    adjacent_lanes.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2)});
+    std::string lane_id = stmt.GetColumnText(0);
+    adjacent_lanes[lane_id].push_back({stmt.GetColumnText(1), stmt.GetColumnText(2)});
   }
   return adjacent_lanes;
 }
