@@ -20,19 +20,20 @@ TEST_F(GeoPackageParserTest, Parse) {
   GeoPackageParser parser(kDatabasePath);
 
   // Verify metadata.
-  const std::vector<GPKGMaliputMetadata>& metadata = parser.GetMetadata();
+  const std::unordered_map<std::string, std::string>& metadata = parser.GetMetadata();
   EXPECT_FALSE(metadata.empty());
   auto find_metadata = [&](const std::string& key) {
-    return std::find_if(metadata.begin(), metadata.end(), [&](const auto& item) { return item.key == key; });
+    auto it = metadata.find(key);
+    return it;
   };
 
   auto it_version = find_metadata("schema_version");
   ASSERT_NE(metadata.end(), it_version);
-  EXPECT_EQ("1.0.0", it_version->value);
+  EXPECT_EQ("1.0.0", it_version->second);
 
   auto it_tolerance = find_metadata("linear_tolerance");
   ASSERT_NE(metadata.end(), it_tolerance);
-  EXPECT_EQ("0.01", it_tolerance->value);
+  EXPECT_EQ("0.01", it_tolerance->second);
 
   // Verify junctions.
   const std::vector<GPKGJunction>& junctions = parser.GetJunctions();

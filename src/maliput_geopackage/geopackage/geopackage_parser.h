@@ -42,12 +42,6 @@ namespace geopackage {
 
 /// Structures to hold the data parsed from the GeoPackage file. These structures mirror the tables in the GeoPackage.
 
-/// Metadata table containing key-value pairs of metadata information.
-struct GPKGMaliputMetadata {
-  std::string key;
-  std::string value;
-};
-
 /// Junctions table containing information about junctions in the road network.
 struct GPKGJunction {
   std::string junction_id;
@@ -111,7 +105,7 @@ class GeoPackageParser {
 
   // Getter methods for the data structures. These will be used by the GeoPackageManager to populate the
   // maliput_sparse::parser::Junctions and Connections.
-  const std::vector<GPKGMaliputMetadata>& GetMetadata() const { return maliput_metadata_; }
+  const std::unordered_map<std::string, std::string>& GetMetadata() const { return maliput_metadata_; }
   const std::vector<GPKGJunction>& GetJunctions() const { return junctions_; }
   const std::vector<GPKGSegment>& GetSegments() const { return segments_; }
   const std::vector<GPKGLaneBoundary>& GetLaneBoundaries() const { return lane_boundaries_; }
@@ -121,7 +115,7 @@ class GeoPackageParser {
 
  private:
   // Data structures to hold the parsed data from the GeoPackage file
-  std::vector<GPKGMaliputMetadata> maliput_metadata_;
+  std::unordered_map<std::string, std::string> maliput_metadata_;
   std::vector<GPKGJunction> junctions_;
   std::vector<GPKGSegment> segments_;
   std::vector<GPKGLaneBoundary> lane_boundaries_;
@@ -136,7 +130,7 @@ class GeoPackageParser {
   SqliteDatabase LoadDatabase(const std::string& gpkg_file_path) const;
 
   /// Parses the metadata from the GeoPackage.
-  std::vector<GPKGMaliputMetadata> ParseMetadata(const SqliteDatabase& db) const;
+  std::unordered_map<std::string, std::string> ParseMetadata(const SqliteDatabase& db) const;
 
   /// Parses the junctions from the GeoPackage.
   std::vector<GPKGJunction> ParseJunctions(const SqliteDatabase& db) const;

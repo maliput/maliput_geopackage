@@ -70,12 +70,12 @@ SqliteDatabase GeoPackageParser::LoadDatabase(const std::string& gpkg_file_path)
   return SqliteDatabase(gpkg_file_path);
 }
 
-std::vector<GPKGMaliputMetadata> GeoPackageParser::ParseMetadata(const SqliteDatabase& db) const {
+std::unordered_map<std::string, std::string> GeoPackageParser::ParseMetadata(const SqliteDatabase& db) const {
   // Parse maliput_metadata and store
   SqliteStatement stmt(db.get(), "SELECT key, value FROM maliput_metadata");
-  std::vector<GPKGMaliputMetadata> metadata;
+  std::unordered_map<std::string, std::string> metadata;
   while (stmt.Step()) {
-    metadata.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1)});
+    metadata[stmt.GetColumnText(0)] = stmt.GetColumnText(1);
   }
   return metadata;
 }
