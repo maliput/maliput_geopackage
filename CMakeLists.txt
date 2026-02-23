@@ -50,6 +50,23 @@ if(BUILD_TESTING)
 endif()
 
 ##############################################################################
+# Docs
+##############################################################################
+
+if(BUILD_DOCS)
+  message(STATUS "Doxygen generation - Enabled")
+  find_package(ament_cmake_doxygen REQUIRED)
+    ament_doxygen_generate(doxygen_maliput_geopackage
+      CONFIG_OVERLAY doc/Doxyfile.overlay.in
+      DEPENDENCIES maliput maliput_sparse
+      TEST_ON_WARNS
+  )
+  add_definitions(-DBUILD_DOCS)
+else()
+  message(STATUS "Doxygen generation - Disabled")
+endif()
+
+##############################################################################
 # Export
 ##############################################################################
 
