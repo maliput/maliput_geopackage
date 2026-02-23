@@ -30,22 +30,74 @@
 #pragma once
 
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include <maliput/common/maliput_copyable.h>
-#include <maliput_sparse/parser/connection.h>
-#include <maliput_sparse/parser/junction.h>
-#include <maliput_sparse/parser/parser.h>
+
+#include "maliput/math/vector.h"
+#include "maliput_geopackage/geopackage/sqlite_helpers.h"
 
 namespace maliput_geopackage {
 namespace geopackage {
 
-/// GeoPackageParser is responsible for loading a GeoPackage file, parsing it according to the
-/// maliput GeoPackage schema, and providing accessors to get the road network data.
-///
-/// TODO(#7): Implement this.
-class GeoPackageParser : public maliput_sparse::parser::Parser {
+/// Structures to hold the data parsed from the GeoPackage file. These structures mirror the tables in the GeoPackage.
+
+/// Metadata table containing key-value pairs of metadata information.
+struct GPKGMaliputMetadata {
+  std::string key;
+  std::string value;
+};
+
+/// Junctions table containing information about junctions in the road network.
+struct GPKGJunction {
+  std::string junction_id;
+  std::string name;
+};
+
+/// Segments table containing information about segments in the road network.
+struct GPKGSegment {
+  std::string segment_id;
+  std::string junction_id;
+  std::string name;
+};
+
+/// Lane boundaries table containing information about boundaries in the road network.
+struct GPKGLaneBoundary {
+  std::string boundary_id;
+  std::vector<maliput::math::Vector3> geometry;
+};
+
+/// Lanes table containing information about lanes in the road network.
+struct GPKGLane {
+  std::string lane_id;
+  std::string segment_id;
+  std::string lane_type;
+  std::string direction;
+  std::string left_boundary_id;
+  bool left_boundary_inverted;
+  std::string right_boundary_id;
+  bool right_boundary_inverted;
+};
+
+/// Branch point lanes table containing information about the lanes that are connected at branch points in the road
+/// network.
+struct GPKGBranchPointLane {
+  std::string branch_point_id;
+  std::string lane_id;
+  std::string side;      // 'a' or 'b'
+  std::string lane_end;  // 'start' or 'finish'
+};
+
+/// Adjacent lanes table containing information about the lanes that are adjacent to each other in the road network.
+struct GPKGAdjacentLane {
+  std::string lane_id;
+  std::string adjacent_lane_id;
+  std::string side;  // 'left' or 'right'
+};
+
+/// GeoPackageParser is responsible for loading a GeoPackage file, parsing it and filling temporary data structures to
+/// hold the geopackage information.
+class GeoPackageParser {
  public:
   MALIPUT_NO_COPY_NO_MOVE_NO_ASSIGN(GeoPackageParser)
 
@@ -57,13 +109,58 @@ class GeoPackageParser : public maliput_sparse::parser::Parser {
   /// Destructor.
   ~GeoPackageParser();
 
- private:
-  /// Gets the map's junctions.
-  const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& DoGetJunctions()
-      const override;
+  // Getter methods for the data structures. These will be used by the GeoPackageManager to populate the
+  // maliput_sparse::parser::Junctions and Connections.
+  const std::vector<GPKGMaliputMetadata>& GetMetadata() const { return maliput_metadata_; }
+  const std::vector<GPKGJunction>& GetJunctions() const { return junctions_; }
+  const std::vector<GPKGSegment>& GetSegments() const { return segments_; }
+  const std::vector<GPKGLaneBoundary>& GetLaneBoundaries() const { return lane_boundaries_; }
+  const std::vector<GPKGLane>& GetLanes() const { return lanes_; }
+  const std::vector<GPKGBranchPointLane>& GetBranchPointLanes() const { return branch_point_lanes_; }
+  const std::vector<GPKGAdjacentLane>& GetAdjacentLanes() const { return adjacent_lanes_; }
 
-  /// Gets connections between the map's lanes.
-  const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
+ private:
+  // Data structures to hold the parsed data from the GeoPackage file
+  std::vector<GPKGMaliputMetadata> maliput_metadata_;
+  std::vector<GPKGJunction> junctions_;
+  std::vector<GPKGSegment> segments_;
+  std::vector<GPKGLaneBoundary> lane_boundaries_;
+  std::vector<GPKGLane> lanes_;
+  std::vector<GPKGBranchPointLane> branch_point_lanes_;
+  std::vector<GPKGAdjacentLane> adjacent_lanes_;
+
+  /// Opens the GeoPackage database.
+  /// @param gpkg_file_path The path to the GeoPackage file to load.
+  /// @returns A SqliteDatabase object representing the opened database connection.
+  /// @throws std::runtime_error if the file cannot be opened.
+  SqliteDatabase LoadDatabase(const std::string& gpkg_file_path) const;
+
+  /// Parses the metadata from the GeoPackage.
+  std::vector<GPKGMaliputMetadata> ParseMetadata(const SqliteDatabase& db) const;
+
+  /// Parses the junctions from the GeoPackage.
+  std::vector<GPKGJunction> ParseJunctions(const SqliteDatabase& db) const;
+
+  /// Parses the segments from the GeoPackage.
+  std::vector<GPKGSegment> ParseSegments(const SqliteDatabase& db) const;
+
+  /// Parses the lane boundaries from the GeoPackage and stores them in the boundary_lines_ member variable.
+  std::vector<GPKGLaneBoundary> ParseBoundaries(const SqliteDatabase& db) const;
+
+  /// Converts a GeoPackage geometry blob to a vector of Vector3 points.
+  /// @param data The data blob containing the geometry.
+  /// @param bytes The size of the data blob.
+  /// @returns A vector of Vector3 points representing the geometry.
+  std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, int bytes) const;
+
+  /// Parses the lanes from the GeoPackage.
+  std::vector<GPKGLane> ParseLanes(const SqliteDatabase& db) const;
+
+  /// Parses the branch point lanes from the GeoPackage and builds the connections between lanes.
+  std::vector<GPKGBranchPointLane> ParseBranchPoints(const SqliteDatabase& db) const;
+
+  /// Parses the adjacent lanes from the GeoPackage.
+  std::vector<GPKGAdjacentLane> ParseAdjacentLanes(const SqliteDatabase& db) const;
 };
 
 }  // namespace geopackage

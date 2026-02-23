@@ -29,29 +29,210 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "maliput_geopackage/geopackage/geopackage_parser.h"
 
+#include <cstring>
+
+#include <maliput/common/logger.h>
+#include <maliput/common/maliput_throw.h>
+
 namespace maliput_geopackage {
 namespace geopackage {
 
-// TODO(#4): Implement the GeoPackageParser methods.
-
 GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
-  // TODO(#4): Implement this.
+  // Open the database connection
+  auto db = LoadDatabase(gpkg_file_path);
+
+  // Parse metadata
+  maliput_metadata_ = ParseMetadata(db);
+
+  // Parse junctions
+  junctions_ = ParseJunctions(db);
+
+  // Parse segments
+  segments_ = ParseSegments(db);
+
+  // Parse lane boundaries
+  lane_boundaries_ = ParseBoundaries(db);
+
+  // Parse lanes
+  lanes_ = ParseLanes(db);
+
+  // Parse branch points
+  branch_point_lanes_ = ParseBranchPoints(db);
+
+  // Parse adjacent lines
+  adjacent_lanes_ = ParseAdjacentLanes(db);
 }
 
 GeoPackageParser::~GeoPackageParser() = default;
 
-const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
-GeoPackageParser::DoGetJunctions() const {
-  // TODO(#4): Implement this.
-  static const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>
-      kEmptyJunctions;
-  return kEmptyJunctions;
+SqliteDatabase GeoPackageParser::LoadDatabase(const std::string& gpkg_file_path) const {
+  // Load the database and check for errors
+  return SqliteDatabase(gpkg_file_path);
 }
 
-const std::vector<maliput_sparse::parser::Connection>& GeoPackageParser::DoGetConnections() const {
-  // TODO(#4): Implement this.
-  static const std::vector<maliput_sparse::parser::Connection> kEmptyConnections;
-  return kEmptyConnections;
+std::vector<GPKGMaliputMetadata> GeoPackageParser::ParseMetadata(const SqliteDatabase& db) const {
+  // Parse maliput_metadata and store
+  SqliteStatement stmt(db.get(), "SELECT key, value FROM maliput_metadata");
+  std::vector<GPKGMaliputMetadata> metadata;
+  while (stmt.Step()) {
+    metadata.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1)});
+  }
+  return metadata;
+}
+
+std::vector<GPKGJunction> GeoPackageParser::ParseJunctions(const SqliteDatabase& db) const {
+  // Parse junctions and store
+  SqliteStatement stmt(db.get(), "SELECT junction_id, name FROM junctions");
+  std::vector<GPKGJunction> junctions;
+  while (stmt.Step()) {
+    junctions.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1)});
+  }
+  return junctions;
+}
+
+std::vector<GPKGSegment> GeoPackageParser::ParseSegments(const SqliteDatabase& db) const {
+  // Parse segments and store
+  SqliteStatement stmt(db.get(), "SELECT segment_id, junction_id, name FROM segments");
+  std::vector<GPKGSegment> segments;
+  while (stmt.Step()) {
+    segments.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2)});
+  }
+  return segments;
+}
+
+std::vector<GPKGLaneBoundary> GeoPackageParser::ParseBoundaries(const SqliteDatabase& db) const {
+  // Parse lane_boundaries and store
+  SqliteStatement stmt(db.get(), "SELECT boundary_id, geometry FROM lane_boundaries");
+  std::vector<GPKGLaneBoundary> boundaries;
+  while (stmt.Step()) {
+    std::string id = stmt.GetColumnText(0);
+    const void* blob = stmt.GetColumnBlob(1);
+    int bytes = stmt.GetColumnBytes(1);
+    boundaries.push_back({id, ParseGeopackageGeometry(blob, bytes)});
+  }
+  return boundaries;
+}
+
+std::vector<maliput::math::Vector3> GeoPackageParser::ParseGeopackageGeometry(const void* data, int bytes) const {
+  MALIPUT_VALIDATE(data != nullptr, "GeoPackage geometry data is null.");
+  MALIPUT_VALIDATE(bytes >= 8, "GeoPackage geometry blob too small.");
+
+  const uint8_t* ptr = static_cast<const uint8_t*>(data);
+  const uint8_t* end = ptr + bytes;
+
+  // ---- GeoPackage header ----
+  // Magic "GP"
+  MALIPUT_VALIDATE(ptr[0] == 'G' && ptr[1] == 'P', "Invalid GeoPackage geometry magic.");
+  ptr += 2;
+
+  // Version
+  const uint8_t version = *ptr++;
+  MALIPUT_VALIDATE(version == 0, "Unsupported GeoPackage geometry version.");
+
+  // Flags
+  const uint8_t flags = *ptr++;
+  const uint8_t envelope_indicator = (flags >> 1) & 0x07;
+
+  // SRS ID
+  MALIPUT_VALIDATE(ptr + 4 <= end, "Truncated GeoPackage geometry SRS.");
+  ptr += 4;
+
+  // Envelope (skip if present)
+  static const int envelope_sizes[] = {
+      0,   // none
+      32,  // XY
+      48,  // XYZ
+      48,  // XYM
+      64   // XYZM
+  };
+
+  MALIPUT_VALIDATE(envelope_indicator <= 4, "Unsupported GeoPackage envelope type.");
+
+  ptr += envelope_sizes[envelope_indicator];
+  MALIPUT_VALIDATE(ptr < end, "Invalid GeoPackage geometry envelope.");
+
+  // ---- WKB ----
+  // Byte order
+  const uint8_t byte_order = *ptr++;
+  MALIPUT_VALIDATE(byte_order == 1, "Only little-endian WKB supported.");
+
+  // Geometry type
+  MALIPUT_VALIDATE(ptr + 4 <= end, "Truncated WKB geometry type.");
+  uint32_t wkb_type;
+  std::memcpy(&wkb_type, ptr, 4);
+  ptr += 4;
+
+  const bool has_z = (wkb_type & 0x80000000) != 0;
+  const uint32_t base_type = wkb_type & 0x0FFFFFFF;
+
+  MALIPUT_VALIDATE(base_type == 2, "Only LINESTRING geometries supported.");
+
+  // Number of points
+  MALIPUT_VALIDATE(ptr + 4 <= end, "Truncated WKB point count.");
+  uint32_t num_points;
+  std::memcpy(&num_points, ptr, 4);
+  ptr += 4;
+
+  const int stride = has_z ? 24 : 16;
+  MALIPUT_VALIDATE(ptr + num_points * stride <= end, "Insufficient WKB point data.");
+
+  std::vector<maliput::math::Vector3> points;
+  points.reserve(num_points);
+
+  for (uint32_t i = 0; i < num_points; ++i) {
+    double x, y, z = 0.0;
+
+    std::memcpy(&x, ptr, 8);
+    ptr += 8;
+    std::memcpy(&y, ptr, 8);
+    ptr += 8;
+
+    if (has_z) {
+      std::memcpy(&z, ptr, 8);
+      ptr += 8;
+    }
+
+    points.emplace_back(x, y, z);
+  }
+
+  return points;
+}
+
+std::vector<GPKGLane> GeoPackageParser::ParseLanes(const SqliteDatabase& db) const {
+  // Parse lanes and store
+  SqliteStatement stmt(db.get(),
+                       "SELECT lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
+                       "right_boundary_id, right_boundary_inverted FROM lanes");
+
+  std::vector<GPKGLane> lanes;
+  while (stmt.Step()) {
+    lanes.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2), stmt.GetColumnText(3),
+                     stmt.GetColumnText(4), stmt.GetColumnInt(5) != 0, stmt.GetColumnText(6),
+                     stmt.GetColumnInt(7) != 0});
+  }
+  return lanes;
+}
+
+std::vector<GPKGBranchPointLane> GeoPackageParser::ParseBranchPoints(const SqliteDatabase& db) const {
+  // Parse branch points and build connections
+  SqliteStatement stmt(db.get(), "SELECT branch_point_id, lane_id, side, lane_end FROM branch_point_lanes");
+
+  std::vector<GPKGBranchPointLane> gpkp_connections;
+  while (stmt.Step()) {
+    gpkp_connections.push_back(
+        {stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2), stmt.GetColumnText(3)});
+  }
+  return gpkp_connections;
+}
+
+std::vector<GPKGAdjacentLane> GeoPackageParser::ParseAdjacentLanes(const SqliteDatabase& db) const {
+  // Parse adjacent lanes view
+  SqliteStatement stmt(db.get(), "SELECT lane_id, adjacent_lane_id, side FROM view_adjacent_lanes");
+  std::vector<GPKGAdjacentLane> adjacent_lanes;
+  while (stmt.Step()) {
+    adjacent_lanes.push_back({stmt.GetColumnText(0), stmt.GetColumnText(1), stmt.GetColumnText(2)});
+  }
+  return adjacent_lanes;
 }
 
 }  // namespace geopackage

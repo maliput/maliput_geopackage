@@ -4,6 +4,7 @@
 
 add_library(geopackage
   geopackage_parser.cc
+  geopackage_manager.cc
 )
 
 add_library(maliput_geopackage::geopackage ALIAS geopackage)
@@ -26,6 +27,7 @@ target_link_libraries(geopackage
     maliput::math
     maliput_sparse::geometry
     maliput_sparse::parser
+    SQLite::SQLite3
 )
 
 install(TARGETS geopackage

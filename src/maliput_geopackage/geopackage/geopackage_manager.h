@@ -1,6 +1,6 @@
 // BSD 3-Clause License
 //
-// Copyright (c) 2026, Woven by Toyota.
+// Copyright (c) 2026, Woven by Toyota
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,30 +27,49 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#include "maliput_geopackage/builder/road_network_builder.h"
+#pragma once
 
-#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-#include <maliput/common/logger.h>
-#include <maliput_sparse/loader/road_network_loader.h>
+#include <maliput/common/maliput_copyable.h>
+#include <maliput_sparse/parser/connection.h>
+#include <maliput_sparse/parser/junction.h>
+#include <maliput_sparse/parser/parser.h>
 
-#include "maliput_geopackage/builder/builder_configuration.h"
-#include "maliput_geopackage/geopackage/geopackage_manager.h"
+#include "maliput_geopackage/geopackage/geopackage_parser.h"
 
 namespace maliput_geopackage {
-namespace builder {
+namespace geopackage {
 
-std::unique_ptr<maliput::api::RoadNetwork> RoadNetworkBuilder::operator()() const {
-  const BuilderConfiguration builder_config{BuilderConfiguration::FromMap(builder_config_)};
+/// GeoPackageManager is responsible for loading a GeoPackage file, parsing it according to the
+/// maliput GeoPackage schema, and providing accessors to get the road network data.
+///
+/// TODO(#7): Implement this.
+class GeoPackageManager : public maliput_sparse::parser::Parser {
+ public:
+  MALIPUT_NO_COPY_NO_MOVE_NO_ASSIGN(GeoPackageManager)
 
-  maliput::log()->info("Loading GeoPackage from file: ", builder_config.gpkg_file, " ...");
+  /// Constructs a GeoPackageManager object.
+  /// @param gpkg_file_path The path to the GeoPackage file to load.
+  /// @throws std::runtime_error if the file cannot be opened or parsed.
+  explicit GeoPackageManager(const std::string& gpkg_file_path);
 
-  std::unique_ptr<maliput_sparse::parser::Parser> gpkg_parser =
-      std::make_unique<geopackage::GeoPackageManager>(builder_config.gpkg_file);
+  /// Destructor.
+  ~GeoPackageManager();
 
-  maliput::log()->trace("Building RoadNetwork...");
-  return maliput_sparse::loader::RoadNetworkLoader(std::move(gpkg_parser), builder_config.sparse_config)();
-}
+ private:
+  /// Gets the map's junctions.
+  const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& DoGetJunctions()
+      const override;
 
-}  // namespace builder
+  /// Gets connections between the map's lanes.
+  const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
+
+  /// GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
+  GeoPackageParser parser_;
+};
+
+}  // namespace geopackage
 }  // namespace maliput_geopackage
