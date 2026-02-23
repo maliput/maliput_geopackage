@@ -29,22 +29,32 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
+#include <memory>
 #include <string>
 
 #include <sqlite3.h>
 
 #include "maliput/common/maliput_throw.h"
 
+// Define a custom deleter for the sqlite3 smart pointer.
+struct SqliteDeleter {
+  void operator()(sqlite3* db) const {
+    if (db) {
+      sqlite3_close(db);
+    }
+  }
+};
+
 // RAII wrapper for sqlite3 database connection.
 class SqliteDatabase {
  public:
   explicit SqliteDatabase(const std::string& db_path);
-  ~SqliteDatabase();
+  ~SqliteDatabase() = default;
 
   sqlite3* get() const;
 
  private:
-  sqlite3* db_{nullptr};
+  std::unique_ptr<sqlite3, SqliteDeleter> db_;
 };
 
 // RAII wrapper for sqlite3 statement.

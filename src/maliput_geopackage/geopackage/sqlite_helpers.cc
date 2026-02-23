@@ -10,21 +10,17 @@
 #include "maliput/common/maliput_throw.h"
 
 SqliteDatabase::SqliteDatabase(const std::string& db_path) {
-  const int rc = sqlite3_open_v2(db_path.c_str(), &db_, SQLITE_OPEN_READONLY, nullptr);
+  sqlite3* raw_db = nullptr;
+  const int rc = sqlite3_open_v2(db_path.c_str(), &raw_db, SQLITE_OPEN_READONLY, nullptr);
   if (rc != SQLITE_OK) {
-    const std::string err_msg = sqlite3_errmsg(db_);
-    sqlite3_close(db_);
+    const std::string err_msg = sqlite3_errmsg(raw_db);
+    sqlite3_close(raw_db);
     MALIPUT_THROW_MESSAGE("Failed to open GeoPackage at " + db_path + ": " + err_msg);
   }
+  db_ = std::unique_ptr<sqlite3, SqliteDeleter>(raw_db);
 }
 
-SqliteDatabase::~SqliteDatabase() {
-  if (db_) {
-    sqlite3_close(db_);
-  }
-}
-
-sqlite3* SqliteDatabase::get() const { return db_; }
+sqlite3* SqliteDatabase::get() const { return db_.get(); }
 
 SqliteStatement::SqliteStatement(sqlite3* db, const std::string& query) {
   const int rc = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt_, nullptr);
@@ -54,7 +50,12 @@ bool SqliteStatement::Step() {
 
 std::string SqliteStatement::GetColumnText(int col) {
   const unsigned char* text = sqlite3_column_text(stmt_, col);
-  return text ? std::string(reinterpret_cast<const char*>(text)) : "";
+  if (text) {
+    // Get the exact length to avoid an O(N) strlen scan
+    int len = sqlite3_column_bytes(stmt_, col);
+    return std::string(reinterpret_cast<const char*>(text), len);
+  }
+  return "";
 }
 
 int SqliteStatement::GetColumnInt(int col) { return sqlite3_column_int(stmt_, col); }
