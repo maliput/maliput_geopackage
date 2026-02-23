@@ -38,15 +38,22 @@ namespace maliput_geopackage {
 namespace geopackage {
 
 GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
-  // Open the database connection
+  maliput::log()->trace("Parsing GeoPackage file: ", gpkg_file_path);
   auto db = LoadDatabase(gpkg_file_path);
 
+  maliput::log()->trace("Parsing GeoPackage metadata...");
   maliput_metadata_ = ParseMetadata(db);
+  maliput::log()->trace("Parsing GeoPackage junctions...");
   junctions_ = ParseJunctions(db);
+  maliput::log()->trace("Parsing GeoPackage segments...");
   segments_ = ParseSegments(db);
+  maliput::log()->trace("Parsing GeoPackage lane boundaries...");
   lane_boundaries_ = ParseBoundaries(db);
+  maliput::log()->trace("Parsing GeoPackage lanes...");
   lanes_ = ParseLanes(db);
+  maliput::log()->trace("Parsing GeoPackage branch point lanes...");
   branch_point_lanes_ = ParseBranchPoints(db);
+  maliput::log()->trace("Parsing GeoPackage adjacent lanes...");
   adjacent_lanes_ = ParseAdjacentLanes(db);
 }
 
