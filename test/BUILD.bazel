@@ -31,7 +31,7 @@ cc_test(
     data = glob(["resources/**"]),
     defines = ["TEST_RESOURCES_DIR=\\\"test/resources\\\""],
     deps = [
-        "//:geopackage",
+        "//:maliput_geopackage",
         "@googletest//:gtest_main",
     ],
 )
@@ -43,7 +43,7 @@ cc_test(
     data = glob(["resources/**"]),
     defines = ["TEST_RESOURCES_DIR=\\\"test/resources\\\""],
     deps = [
-        "//:geopackage",
+        "//:maliput_geopackage",
         "@googletest//:gtest_main",
     ],
 )
