@@ -38,11 +38,12 @@
 
 // Define a custom deleter for the sqlite3 smart pointer.
 struct SqliteDeleter {
-  void operator()(sqlite3* db) const {
-    if (db) {
-      sqlite3_close(db);
-    }
-  }
+  void operator()(sqlite3* db) const;
+};
+
+// Define a custom deleter for the sqlite3_stmt smart pointer.
+struct SqliteStatementDeleter {
+  void operator()(sqlite3_stmt* stmt) const;
 };
 
 // RAII wrapper for sqlite3 database connection.
@@ -61,15 +62,24 @@ class SqliteDatabase {
 class SqliteStatement {
  public:
   SqliteStatement(sqlite3* db, const std::string& query);
-  ~SqliteStatement();
+  ~SqliteStatement() = default;
 
+  /// Step to the next row of the result. Returns true if a row is available, false if the end of the result is reached.
   bool Step();
 
+  /// Get the text value of the specified column in the current row. Returns an empty string if the column is NULL.
   std::string GetColumnText(int col);
+
+  /// Get the integer value of the specified column in the current row. Returns 0 if the column is NULL.
   int GetColumnInt(int col);
+
+  /// Get a pointer to the blob data of the specified column in the current row. Returns nullptr if the column is NULL.
   const void* GetColumnBlob(int col);
+
+  /// Get the size in bytes of the blob data in the specified column. Returns 0 if the column is NULL.
   int GetColumnBytes(int col);
 
  private:
-  sqlite3_stmt* stmt_{nullptr};
+  /// The sqlite3_stmt is managed by a unique_ptr with a custom deleter to ensure proper cleanup.
+  std::unique_ptr<sqlite3_stmt, SqliteStatementDeleter> stmt_;
 };

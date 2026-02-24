@@ -113,62 +113,62 @@ class GeoPackageParser {
   }
 
  private:
-  // Data structures to hold the parsed data from the GeoPackage file
-  /// Metadata key-value pairs from the maliput_metadata table.
-  std::unordered_map<std::string, std::string> maliput_metadata_;
-  /// Junctions parsed from the junctions table. Keyed by junction_id.
-  std::unordered_map<std::string, GPKGJunction> junctions_;
-  /// Segments parsed from the segments table. Keyed by segment_id.
-  std::unordered_map<std::string, GPKGSegment> segments_;
-  /// Lane boundaries parsed from the lane_boundaries table. Keyed by boundary_id.
-  std::unordered_map<std::string, GPKGLaneBoundary> lane_boundaries_;
-  /// Lanes parsed from the lanes table. Keyed by lane_id.
-  std::unordered_map<std::string, GPKGLane> lanes_;
-  /// Branch point lanes parsed from the branch_point_lanes table. Keyed by branch_point_id with multiple lanes per
-  /// branch point.
-  std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> branch_point_lanes_;
-  /// Adjacent lanes parsed from the adjacent_lanes table. Keyed by lane_id with multiple adjacent lanes per lane.
-  std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> adjacent_lanes_;
-
-  /// Opens the GeoPackage database.
-  /// @param gpkg_file_path The path to the GeoPackage file to load.
-  /// @returns A SqliteDatabase object representing the opened database connection.
-  /// @throws std::runtime_error if the file cannot be opened.
+  // Opens the GeoPackage database.
+  // @param gpkg_file_path The path to the GeoPackage file to load.
+  // @returns A SqliteDatabase object representing the opened database connection.
+  // @throws std::runtime_error if the file cannot be opened.
   SqliteDatabase LoadDatabase(const std::string& gpkg_file_path) const;
 
-  /// Parses the metadata from the GeoPackage.
+  // Parses the metadata from the GeoPackage.
   std::unordered_map<std::string, std::string> ParseMetadata(const SqliteDatabase& db) const;
 
-  /// Parses the junctions from the GeoPackage.
+  // Parses the junctions from the GeoPackage.
   std::unordered_map<std::string, GPKGJunction> ParseJunctions(const SqliteDatabase& db) const;
 
-  /// Parses the segments from the GeoPackage.
+  // Parses the segments from the GeoPackage.
   std::unordered_map<std::string, GPKGSegment> ParseSegments(const SqliteDatabase& db) const;
 
-  /// Parses the lane boundaries from the GeoPackage and stores them in the boundary_lines_ member variable.
+  // Parses the lane boundaries from the GeoPackage and stores them in the boundary_lines_ member variable.
   std::unordered_map<std::string, GPKGLaneBoundary> ParseBoundaries(const SqliteDatabase& db) const;
 
-  /// Converts a GeoPackage geometry blob to a vector of Vector3 points.
-  /// Supports GeoPackage 1.0.0+ WKB format with LINESTRING geometries.
-  /// The implementation follows the GeoPackage standard encoding:
-  /// - GeoPackage magic header ("GP")
-  /// - Envelope support (XY, XYZ, XYM, XYZM)
-  /// - Little-endian WKB (Well-Known Binary) encoding
-  /// - LINESTRING geometry type only
-  /// @param data The data blob containing the geometry.
-  /// @param bytes The size of the data blob.
-  /// @returns A vector of Vector3 points representing the geometry.
-  /// @throws std::runtime_error if the geometry format is invalid or unsupported.
+  // Converts a GeoPackage geometry blob to a vector of Vector3 points.
+  // Supports GeoPackage 1.0.0+ WKB format with LINESTRING geometries.
+  // The implementation follows the GeoPackage standard encoding:
+  // - GeoPackage magic header ("GP")
+  // - Envelope support (XY, XYZ, XYM, XYZM)
+  // - Little-endian WKB (Well-Known Binary) encoding
+  // - LINESTRING geometry type only
+  // @param data The data blob containing the geometry.
+  // @param bytes The size of the data blob.
+  // @returns A vector of Vector3 points representing the geometry.
+  // @throws std::runtime_error if the geometry format is invalid or unsupported.
   std::vector<maliput::math::Vector3> ParseGeopackageGeometry(const void* data, int bytes) const;
 
-  /// Parses the lanes from the GeoPackage.
+  // Parses the lanes from the GeoPackage.
   std::unordered_map<std::string, GPKGLane> ParseLanes(const SqliteDatabase& db) const;
 
-  /// Parses the branch point lanes from the GeoPackage and builds the connections between lanes.
+  // Parses the branch point lanes from the GeoPackage and builds the connections between lanes.
   std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> ParseBranchPoints(const SqliteDatabase& db) const;
 
-  /// Parses the adjacent lanes from the GeoPackage.
+  // Parses the adjacent lanes from the GeoPackage.
   std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> ParseAdjacentLanes(const SqliteDatabase& db) const;
+
+  // Data structures to hold the parsed data from the GeoPackage file
+  // Metadata key-value pairs from the maliput_metadata table.
+  std::unordered_map<std::string, std::string> maliput_metadata_;
+  // Junctions parsed from the junctions table. Keyed by junction_id.
+  std::unordered_map<std::string, GPKGJunction> junctions_;
+  // Segments parsed from the segments table. Keyed by segment_id.
+  std::unordered_map<std::string, GPKGSegment> segments_;
+  // Lane boundaries parsed from the lane_boundaries table. Keyed by boundary_id.
+  std::unordered_map<std::string, GPKGLaneBoundary> lane_boundaries_;
+  // Lanes parsed from the lanes table. Keyed by lane_id.
+  std::unordered_map<std::string, GPKGLane> lanes_;
+  // Branch point lanes parsed from the branch_point_lanes table. Keyed by branch_point_id with multiple lanes per
+  // branch point.
+  std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> branch_point_lanes_;
+  // Adjacent lanes parsed from the adjacent_lanes table. Keyed by lane_id with multiple adjacent lanes per lane.
+  std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> adjacent_lanes_;
 };
 
 }  // namespace geopackage
