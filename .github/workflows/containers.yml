@@ -5,12 +5,11 @@ permissions: write-all
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}-bazel-ci
-  BAZEL_VERSION: "6.4.0"
 
 on:
   push:
     paths:
-      - .devcontainer/bazel-zen/Dockerfile
+      - .devcontainer/Dockerfile
     branches:
       - main
   workflow_dispatch:
@@ -18,6 +17,9 @@ on:
 jobs:
   push-bazel-container:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        bazel_version: ["6.4.0", "7.5.0"]
     permissions:
       contents: read
       packages: write
@@ -39,16 +41,16 @@ jobs:
       run: |
         echo "USER: ${{ github.actor }}"
         echo "REPOSITORY: ${{ github.repository }}"
+        echo "BAZEL_VERSION: ${{ matrix.bazel_version }}"
         echo "TAGS: ${{ steps.meta.outputs.tags }}"
         echo "LABELS: ${{ steps.meta.outputs.labels }}"
     - name: Image - Bazel
       uses: docker/build-push-action@v5
       with:
-        file: ./.devcontainer/bazel-zen/Dockerfile
+        file: ./.devcontainer/Dockerfile
         push: true
         build-args: |
-            BAZEL_VERSION=${{ env.BAZEL_VERSION }}
+            BAZEL_VERSION=${{ matrix.bazel_version }}
         tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:bazel${{ env.BAZEL_VERSION }}
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:bazel${{ matrix.bazel_version }}
         labels: ${{ steps.meta.outputs.labels }}

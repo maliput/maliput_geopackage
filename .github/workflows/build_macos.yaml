@@ -8,13 +8,15 @@ on:
     types: [labeled]
   workflow_dispatch:
 
-env:
-  USE_BAZEL_VERSION: "6.4.0"
-
 jobs:
   build:
     if: contains(github.event.pull_request.labels.*.name, 'do-macos-build') || github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: macos-14
+    strategy:
+      matrix:
+        bazel_version: ["6.4.0", "7.5.0"]
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -1,8 +1,12 @@
 {
-    "name": "Bazel Zen",
+    "name": "Bazel 7",
     "build": {
-        "dockerfile": "Dockerfile",
-        "context": ".."
+        "dockerfile": "../Dockerfile",
+        "context": "..",
+        "args": {
+            "BAZEL_VERSION": "7.5.0",
+            "NAME": "bazel7-zen"
+        }
     },
     "remoteUser": "zen",
     "customizations": {
