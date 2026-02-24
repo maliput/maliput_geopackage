@@ -55,6 +55,7 @@ The SQL schema in this document is designed for use with GeoPackage files:
 
 Minimal example SQL:
 
+```sql
 -- create required GeoPackage core tables (from the spec)
 CREATE TABLE gpkg_spatial_ref_sys (
     srs_name TEXT NOT NULL,
@@ -102,6 +103,7 @@ CREATE TABLE gpkg_extensions (
     scope TEXT NOT NULL,
     CONSTRAINT ge_tce UNIQUE (table_name, column_name, extension_name)
 );
+```
 
 ## Coordinate reference system choice
 
