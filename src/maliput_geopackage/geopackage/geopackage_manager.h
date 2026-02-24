@@ -71,11 +71,11 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   const std::string& DoGetGeoReferenceInfo() const override;
 
   // Helper function to convert string to LaneEnd::Which enum.
-  LaneEnd::Which GeoPackageManager::StrToLaneEndWhich(const std::string& s) const;
+  maliput_sparse::parser::LaneEnd::Which StrToLaneEndWhich(const std::string& s) const;
 
   // Sorts lanes from right to left based on adjacency. Maliput Sparse validator expects lanes[0] to be the right-most
   // lane.
-  void GeoPackageManager::SortLanes(std::vector<Lane>* lanes);
+  void SortLanes(std::vector<maliput_sparse::parser::Lane>& lanes) const;
 
   // GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
   GeoPackageParser parser_;
