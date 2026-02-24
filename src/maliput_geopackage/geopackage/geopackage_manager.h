@@ -60,15 +60,26 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   ~GeoPackageManager();
 
  private:
-  /// Gets the map's junctions.
+  // Gets the map's junctions.
   const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& DoGetJunctions()
       const override;
 
-  /// Gets connections between the map's lanes.
+  // Gets connections between the map's lanes.
   const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
 
-  /// GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
+  // Helper function to convert string to LaneEnd::Which enum.
+  LaneEnd::Which GeoPackageManager::StrToLaneEndWhich(const std::string& s) const;
+
+  // Sorts lanes from right to left based on adjacency. Maliput Sparse validator expects lanes[0] to be the right-most
+  // lane.
+  void GeoPackageManager::SortLanes(std::vector<Lane>* lanes);
+
+  // GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
   GeoPackageParser parser_;
+
+  // Data structures to hold the parsed data.
+  std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction> junctions_;
+  std::vector<maliput_sparse::parser::Connection> connections_;
 };
 
 }  // namespace geopackage
