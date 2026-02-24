@@ -136,7 +136,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   }
 
   for (auto& [segment_id, lanes_in_segment] : segment_lanes) {
-    SortLanes(&lanes_in_segment);
+    SortLanes(lanes_in_segment);
   }
 
   std::unordered_map<std::string, std::vector<Segment>> junction_segments;
@@ -198,18 +198,18 @@ LaneEnd::Which GeoPackageManager::StrToLaneEndWhich(const std::string& s) const 
   throw std::runtime_error("Invalid lane end: " + s);
 }
 
-void GeoPackageManager::SortLanes(std::vector<Lane>* lanes) {
-  if (lanes->empty()) return;
+void GeoPackageManager::SortLanes(std::vector<Lane>& lanes) const {
+  if (lanes.empty()) return;
 
   std::unordered_map<std::string, size_t> id_to_index;
-  for (size_t i = 0; i < lanes->size(); ++i) {
-    id_to_index[(*lanes)[i].id] = i;
+  for (size_t i = 0; i < lanes.size(); ++i) {
+    id_to_index[lanes[i].id] = i;
   }
 
   // Find start candidates (lanes with no right neighbor in the segment).
   std::vector<size_t> start_indices;
-  for (size_t i = 0; i < lanes->size(); ++i) {
-    const auto& lane = (*lanes)[i];
+  for (size_t i = 0; i < lanes.size(); ++i) {
+    const auto& lane = lanes[i];
     bool right_neighbor_in_segment = false;
     if (lane.right_lane_id.has_value()) {
       if (id_to_index.find(lane.right_lane_id.value()) != id_to_index.end()) {
@@ -223,13 +223,13 @@ void GeoPackageManager::SortLanes(std::vector<Lane>* lanes) {
 
   // If no start found (e.g. pure cycle), just pick the first one to break it somewhere?
   // Or keep original order.
-  if (start_indices.empty() && !lanes->empty()) {
+  if (start_indices.empty() && !lanes.empty()) {
     start_indices.push_back(0);
   }
 
   std::vector<Lane> sorted_lanes;
-  sorted_lanes.reserve(lanes->size());
-  std::vector<bool> moved(lanes->size(), false);
+  sorted_lanes.reserve(lanes.size());
+  std::vector<bool> moved(lanes.size(), false);
 
   for (size_t start_idx : start_indices) {
     size_t current_idx = start_idx;
@@ -238,7 +238,7 @@ void GeoPackageManager::SortLanes(std::vector<Lane>* lanes) {
 
       // Move lane to sorted list
       moved[current_idx] = true;
-      sorted_lanes.push_back(std::move((*lanes)[current_idx]));
+      sorted_lanes.push_back(std::move(lanes[current_idx]));
 
       // Find next lane to the left
       const auto& current_lane = sorted_lanes.back();
@@ -256,13 +256,13 @@ void GeoPackageManager::SortLanes(std::vector<Lane>* lanes) {
   }
 
   // Append any remaining lanes (e.g. unreachable from starts due to cycles or other issues)
-  for (size_t i = 0; i < lanes->size(); ++i) {
+  for (size_t i = 0; i < lanes.size(); ++i) {
     if (!moved[i]) {
-      sorted_lanes.push_back(std::move((*lanes)[i]));
+      sorted_lanes.push_back(std::move(lanes[i]));
     }
   }
 
-  *lanes = std::move(sorted_lanes);
+  lanes = std::move(sorted_lanes);
 }
 
 }  // namespace geopackage
