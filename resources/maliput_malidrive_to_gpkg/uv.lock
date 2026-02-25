@@ -1,0 +1,34 @@
+version = 1
+revision = 2
+requires-python = ">=3.10"
+
+[[package]]
+name = "maliput"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f1/9c/feb741b4e115a912f40f732e3c2b27522729117dc7dbb76454b16769df32/maliput-1.8.2-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f92f7d98e606c31a45622b732049452cf7ba345c0b95379eb07b17474346dce4", size = 1463588, upload_time = "2025-10-17T17:50:44.13Z" },
+]
+
+[[package]]
+name = "maliput-malidrive"
+version = "0.12.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7d/8a/205ca4d13d39dcb91301dda1610c8de787808575d50ead487bb8753dd9ed/maliput_malidrive-0.12.1-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1427e9caca4ba0afe7b811f7e83eb83d22eb3005a4836801e36231e4189f3666", size = 2833592, upload_time = "2025-10-17T17:51:10.059Z" },
+]
+
+[[package]]
+name = "maliput-malidrive-to-gpkg"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "maliput" },
+    { name = "maliput-malidrive" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "maliput" },
+    { name = "maliput-malidrive" },
+]
