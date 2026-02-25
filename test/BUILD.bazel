@@ -23,3 +23,27 @@ cc_test(
         "@maliput_sparse//:parser",
     ],
 )
+
+cc_test(
+    name = "sqlite_helpers_test",
+    srcs = ["sqlite_helpers_test.cc"],
+    copts = COPTS,
+    data = glob(["resources/**"]),
+    defines = ["TEST_RESOURCES_DIR=\\\"test/resources\\\""],
+    deps = [
+        "//:maliput_geopackage",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "geopackage_parser_test",
+    srcs = ["geopackage_parser_test.cc"],
+    copts = COPTS,
+    data = glob(["resources/**"]),
+    defines = ["TEST_RESOURCES_DIR=\\\"test/resources\\\""],
+    deps = [
+        "//:maliput_geopackage",
+        "@googletest//:gtest_main",
+    ],
+)

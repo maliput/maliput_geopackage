@@ -27,30 +27,30 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#include "maliput_geopackage/builder/road_network_builder.h"
-
-#include <memory>
-
-#include <maliput/common/logger.h>
-#include <maliput_sparse/loader/road_network_loader.h>
-
-#include "maliput_geopackage/builder/builder_configuration.h"
 #include "maliput_geopackage/geopackage/geopackage_manager.h"
 
 namespace maliput_geopackage {
-namespace builder {
+namespace geopackage {
 
-std::unique_ptr<maliput::api::RoadNetwork> RoadNetworkBuilder::operator()() const {
-  const BuilderConfiguration builder_config{BuilderConfiguration::FromMap(builder_config_)};
-
-  maliput::log()->info("Loading GeoPackage from file: ", builder_config.gpkg_file, " ...");
-
-  std::unique_ptr<maliput_sparse::parser::Parser> gpkg_parser =
-      std::make_unique<geopackage::GeoPackageManager>(builder_config.gpkg_file);
-
-  maliput::log()->trace("Building RoadNetwork...");
-  return maliput_sparse::loader::RoadNetworkLoader(std::move(gpkg_parser), builder_config.sparse_config)();
+GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser_(gpkg_file_path) {
+  // TODO
 }
 
-}  // namespace builder
+GeoPackageManager::~GeoPackageManager() = default;
+
+const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
+GeoPackageManager::DoGetJunctions() const {
+  // TODO(#4): Implement this.
+  static const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>
+      kEmptyJunctions;
+  return kEmptyJunctions;
+}
+
+const std::vector<maliput_sparse::parser::Connection>& GeoPackageManager::DoGetConnections() const {
+  // TODO(#4): Implement this.
+  static const std::vector<maliput_sparse::parser::Connection> kEmptyConnections;
+  return kEmptyConnections;
+}
+
+}  // namespace geopackage
 }  // namespace maliput_geopackage
