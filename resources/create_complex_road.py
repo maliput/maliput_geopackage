@@ -52,22 +52,10 @@ def geometry_to_gpkg_binary(geom, srs_id=0):
 
 
 def linestring_to_gpkg(points, srs_id=0):
-    geom = ogr.Geometry(ogr.wkbLineString)
+    geom = ogr.Geometry(ogr.wkbLineString25D)
     for x, y in points:
-        geom.AddPoint(x, y)
+        geom.AddPoint(x, y, 0.0)
     return geometry_to_gpkg_binary(geom, srs_id)
-
-
-def polygon_to_gpkg(points, srs_id=0):
-    ring = ogr.Geometry(ogr.wkbLinearRing)
-    for x, y in points:
-        ring.AddPoint(x, y)
-    ring.CloseRings()
-
-    poly = ogr.Geometry(ogr.wkbPolygon)
-    poly.AddGeometry(ring)
-
-    return geometry_to_gpkg_binary(poly, srs_id)
 
 
 def generate_arc_points(center_x, center_y, radius, start_angle, end_angle,

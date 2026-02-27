@@ -181,7 +181,9 @@ std::vector<maliput::math::Vector3> GeoPackageParser::ParseGeopackageGeometry(co
   std::memcpy(&num_points, ptr, 4);
   ptr += 4;
 
-  const int stride = has_z ? 24 : 16;
+  // Enforce XYZ
+  MALIPUT_VALIDATE(has_z, "Only 3D geometries with Z coordinate supported.");
+  const int stride = 24;
   MALIPUT_VALIDATE(ptr + num_points * stride <= end, "Insufficient WKB point data.");
 
   std::vector<maliput::math::Vector3> points;
