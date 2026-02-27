@@ -197,8 +197,8 @@ def create_segment4_boundaries(start_pose):
     start_angle_rad = math.radians(start_angle_deg)
 
     # Single lane, centered on the reference line. Width is LANE_HALF_WIDTH.
-    offsets = [LANE_HALF_WIDTH, 0.0, -LANE_HALF_WIDTH]
-    boundary_ids = ['s4_left_outer', 's4_left_center', 's4_right_center']
+    offsets = [LANE_HALF_WIDTH / 2, -LANE_HALF_WIDTH / 2]
+    boundary_ids = ['s4_left_boundary', 's4_right_boundary']
 
     for i, offset in enumerate(offsets):
         p_start_x = start_x - offset * math.sin(start_angle_rad)
