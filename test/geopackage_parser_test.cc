@@ -319,15 +319,7 @@ TEST_F(GeoPackageParserTest, ParseGeometryWithoutZ) {
   auto blob = BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2, 1, false);
   temp_gpkg.InsertLaneBoundary("b1", blob);
 
-  GeoPackageParser parser(temp_gpkg.GetPath());
-  const auto& boundaries = parser.GetLaneBoundaries();
-  ASSERT_EQ(1u, boundaries.size());
-  const auto& points = boundaries.at("b1").geometry;
-  ASSERT_EQ(1u, points.size());
-
-  EXPECT_DOUBLE_EQ(0.0, points[0].x());
-  EXPECT_DOUBLE_EQ(0.0, points[0].y());
-  EXPECT_DOUBLE_EQ(0.0, points[0].z());
+  EXPECT_THROW(GeoPackageParser{temp_gpkg.GetPath()}, maliput::common::assertion_error);
 }
 
 }  // namespace test
