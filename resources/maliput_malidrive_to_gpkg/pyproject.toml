@@ -1,0 +1,16 @@
+[project]
+name = "maliput-malidrive-to-gpkg"
+version = "0.1.0"
+description = "Convert maliput_malidrive (OpenDRIVE) road networks to GeoPackage format."
+requires-python = ">=3.10"
+dependencies = [
+    "maliput",
+    "maliput_malidrive",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+maliput-malidrive-to-gpkg = "maliput_malidrive_to_gpkg:main"
