@@ -192,6 +192,15 @@ const std::vector<maliput_sparse::parser::Connection>& GeoPackageManager::DoGetC
   return connections_;
 }
 
+const std::string& GeoPackageManager::DoGetGeoReferenceInfo() const {
+  static const std::string empty_geo_ref = "";
+  auto it = parser_.GetMetadata().find("geo_reference_info");
+  if (it != parser_.GetMetadata().end()) {
+    return it->second;
+  }
+  return empty_geo_ref;
+}
+
 LaneEnd::Which GeoPackageManager::StrToLaneEndWhich(const std::string& s) const {
   if (s == "start") return LaneEnd::Which::kStart;
   if (s == "finish") return LaneEnd::Which::kFinish;
