@@ -52,5 +52,11 @@ const std::vector<maliput_sparse::parser::Connection>& GeoPackageManager::DoGetC
   return kEmptyConnections;
 }
 
+const std::string& GeoPackageManager::DoGetGeoReferenceInfo() const {
+  // TODO(#4): Implement this.
+  static const std::string empty_geo_ref = "";
+  return empty_geo_ref;
+}
+
 }  // namespace geopackage
 }  // namespace maliput_geopackage

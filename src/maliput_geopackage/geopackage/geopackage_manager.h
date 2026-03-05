@@ -67,6 +67,9 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   /// Gets connections between the map's lanes.
   const std::vector<maliput_sparse::parser::Connection>& DoGetConnections() const override;
 
+  // Gets the geo reference information parsed from the input description.
+  const std::string& DoGetGeoReferenceInfo() const override;
+
   /// GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
   GeoPackageParser parser_;
 };

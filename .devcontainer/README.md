@@ -12,7 +12,6 @@ Two devcontainer configurations are provided, one for each supported Bazel major
 
 | Configuration | Bazel Version | Prompt Name |
 |---|---|---|
-| `bazel6/` | 6.4.0 | `bazel6-zen` |
 | `bazel7/` | 7.5.0 | `bazel7-zen` |
 
 Both share a single `Dockerfile` at `.devcontainer/Dockerfile`. The Bazel version is passed via the `BAZEL_VERSION` build arg in each `devcontainer.json`.
@@ -42,7 +41,7 @@ Locally:
 * Open a terminal in the container and run
 
 ```
-(docker) zen@bazel6-zen:/workspaces/maliput_geopackage$ bazel build //...
+(docker) zen@bazel7-zen:/workspaces/maliput_geopackage$ bazel build //...
 ```
 
 CodeSpaces:
