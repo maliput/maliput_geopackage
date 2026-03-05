@@ -274,11 +274,5 @@ void GeoPackageManager::SortLanes(std::vector<Lane>& lanes) const {
   lanes = std::move(sorted_lanes);
 }
 
-const std::string& GeoPackageManager::DoGetGeoReferenceInfo() const {
-  // TODO(#4): Implement this.
-  static const std::string empty_geo_ref = "";
-  return empty_geo_ref;
-}
-
 }  // namespace geopackage
 }  // namespace maliput_geopackage
