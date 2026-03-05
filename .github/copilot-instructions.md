@@ -333,7 +333,7 @@ Located in `.github/workflows/`:
 | Workflow | Description |
 |----------|-------------|
 | `build.yml` | Main CI: CMake (colcon) + Bazel builds |
-| `bazel.yml` | Bazel-only builds (6.x, 7.x, 8.x) |
+| `bazel.yml` | Bazel-only builds (7.x, 8.x) |
 | `build_macos.yaml` | macOS Bazel builds |
 | `containers.yml` | Container image builds |
 | `release.yaml` | Release workflow |
