@@ -48,6 +48,7 @@ jobs:
       working-directory: ${{ env.BAZEL_WS }}/${{ env.PACKAGE_NAME }}
       run: |
         echo 'local_path_override(module_name="maliput", path="../maliput")' >> ./MODULE.bazel
+        echo 'local_path_override(module_name="maliput_sparse", path="../maliput_sparse")' >> ./MODULE.bazel
     - name: Build
       shell: bash
       working-directory: ${{ env.BAZEL_WS }}/${{ env.PACKAGE_NAME}}
