@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -171,14 +172,28 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
     }
   }
 
-  // Deduplicate connections
-  std::sort(connections_.begin(), connections_.end(), [](const Connection& a, const Connection& b) {
-    if (a.from.lane_id != b.from.lane_id) return a.from.lane_id < b.from.lane_id;
-    if (a.from.end != b.from.end) return a.from.end < b.from.end;
-    if (a.to.lane_id != b.to.lane_id) return a.to.lane_id < b.to.lane_id;
-    return a.to.end < b.to.end;
-  });
-  connections_.erase(std::unique(connections_.begin(), connections_.end()), connections_.end());
+  // Deduplicate connections (treat A<->B as identical regardless of ordering).
+  if (!connections_.empty()) {
+    auto canonical_key = [](const Connection& c) {
+      // Normalize lane ends so that the pair's ordering is deterministic.
+      const auto make_pair = [](const LaneEnd& le) { return std::make_pair(le.lane_id, static_cast<int>(le.end)); };
+      const auto a = make_pair(c.from);
+      const auto b = make_pair(c.to);
+      return (a < b) ? std::make_pair(a, b) : std::make_pair(b, a);
+    };
+
+    std::set<decltype(canonical_key(connections_[0]))> seen;
+    std::vector<Connection> unique_connections;
+    unique_connections.reserve(connections_.size());
+
+    for (const auto& c : connections_) {
+      const auto key = canonical_key(c);
+      if (seen.insert(key).second) {
+        unique_connections.push_back(c);
+      }
+    }
+    connections_.swap(unique_connections);
+  }
 }
 
 GeoPackageManager::~GeoPackageManager() = default;
