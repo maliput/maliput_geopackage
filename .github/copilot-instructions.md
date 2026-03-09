@@ -496,8 +496,7 @@ Environment variable `MALIPUT_GEOPACKAGE_RESOURCE_ROOT` points to installed reso
 5. **Coordinate system:** Uses local Cartesian SRS (srs_id=100000), not geodetic coordinates
 6. **Include order matters:** Follow the order enforced by `.clang-format`
 7. **Namespace wrapping:** Always wrap code in `namespace maliput_geopackage { ... }`
-8. **Junction/connection resolution:** `GeoPackageManager::DoGetJunctions()` and `DoGetConnections()` are not yet implemented — they return empty results
-9. **const correctness:** Use `const` wherever possible
+8. **const correctness:** Use `const` wherever possible
 
 ## Related Projects
 
