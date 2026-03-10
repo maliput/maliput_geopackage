@@ -25,3 +25,15 @@ target_compile_definitions(geopackage_parser_test PRIVATE
 target_link_libraries(geopackage_parser_test
   maliput_geopackage::geopackage
 )
+
+ament_add_gtest(geopackage_manager_test
+  geopackage_manager_test.cc
+)
+
+target_compile_definitions(geopackage_manager_test PRIVATE
+  TEST_RESOURCES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources"
+)
+
+target_link_libraries(geopackage_manager_test
+  maliput_geopackage::geopackage
+)
