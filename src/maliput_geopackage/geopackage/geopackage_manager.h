@@ -45,8 +45,6 @@ namespace geopackage {
 
 /// GeoPackageManager is responsible for loading a GeoPackage file, parsing it according to the
 /// maliput GeoPackage schema, and providing accessors to get the road network data.
-///
-/// TODO(#7): Implement this.
 class GeoPackageManager : public maliput_sparse::parser::Parser {
  public:
   MALIPUT_NO_COPY_NO_MOVE_NO_ASSIGN(GeoPackageManager)

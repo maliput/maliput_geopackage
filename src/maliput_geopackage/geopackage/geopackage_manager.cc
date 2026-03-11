@@ -49,6 +49,7 @@ using maliput_sparse::parser::LaneEnd;
 using maliput_sparse::parser::Segment;
 
 GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser_(gpkg_file_path) {
+  maliput::log()->trace("Constructing GeoPackageManager with file: ", gpkg_file_path);
   const auto& gpkg_junctions = parser_.GetJunctions();
   const auto& gpkg_segments = parser_.GetSegments();
   const auto& gpkg_lanes = parser_.GetLanes();
@@ -57,6 +58,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   const auto& gpkg_adjacent_lanes = parser_.GetAdjacentLanes();
 
   // Build Lanes (without segment/junction hierarchy yet)
+  maliput::log()->trace("Building lanes from parsed GeoPackage data...");
   std::unordered_map<std::string, Lane> lanes;
 
   for (const auto& [lane_id, gpkg_lane] : gpkg_lanes) {
@@ -95,6 +97,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   }
 
   // Topology (Branch Points)
+  maliput::log()->trace("Building topology from parsed GeoPackage data...");
   for (const auto& [bp_id, bp_lanes] : gpkg_branch_points) {
     std::vector<GPKGBranchPointLane> side_a;
     std::vector<GPKGBranchPointLane> side_b;
@@ -130,6 +133,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   }
 
   // Build Segments and Junctions
+  maliput::log()->trace("Building segments and junctions from parsed GeoPackage data...");
   std::unordered_map<std::string, std::vector<Lane>> segment_lanes;
   for (auto& [id, lane] : lanes) {
     std::string segment_id = gpkg_lanes.at(id).segment_id;
@@ -159,6 +163,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   }
 
   // Populate Connections vector
+  maliput::log()->trace("Building connections from parsed GeoPackage data...");
   for (const auto& [jid, junction] : junctions_) {
     for (const auto& [sid, segment] : junction.segments) {
       for (const auto& lane : segment.lanes) {
@@ -173,6 +178,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   }
 
   // Deduplicate connections (treat A<->B as identical regardless of ordering).
+  maliput::log()->trace("Deduplicating connections");
   if (!connections_.empty()) {
     auto canonical_key = [](const Connection& c) {
       // Normalize lane ends so that the pair's ordering is deterministic.
@@ -245,8 +251,7 @@ void GeoPackageManager::SortLanes(std::vector<Lane>& lanes) const {
     }
   }
 
-  // If no start found (e.g. pure cycle), just pick the first one to break it somewhere?
-  // Or keep original order.
+  // If no start found (e.g. pure cycle), just pick the first one to break it somewhere
   if (start_indices.empty() && !lanes.empty()) {
     start_indices.push_back(0);
   }
