@@ -3,7 +3,7 @@
 ##############################################################################
 
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
-project(maliput_geopackage LANGUAGES C CXX VERSION 1.0.0)
+project(maliput_geopackage LANGUAGES C CXX VERSION 0.1.0)
 
 ##############################################################################
 # Find 3rd Party Packages

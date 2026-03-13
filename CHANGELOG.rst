@@ -2,7 +2,7 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-1.0.0 (2026-02-12)
+0.1.0 (2026-02-12)
 ------------------
 * Build road network from geopackage information ([#38](https://github.com/maliput/maliput_geopackage/pull/38))
 * Dropping support of bazel 6 ([#45](https://github.com/maliput/maliput_geopackage/pull/45))
