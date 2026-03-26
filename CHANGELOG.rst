@@ -2,6 +2,11 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.2.0 (2026-03-26)
+------------------
+* Update bazel dependencies. (`#50 <https://github.com/maliput/maliput_geopackage/issues/50>`_)
+* Contributors: Santiago Lopez
+
 0.1.0 (2026-02-12)
 ------------------
 * Build road network from geopackage information (`#38 <https://github.com/maliput/maliput_geopackage/issues/38>`_)`
