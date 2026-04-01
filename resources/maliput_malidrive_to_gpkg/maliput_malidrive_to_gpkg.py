@@ -46,6 +46,7 @@ Usage:
 """
 
 import argparse
+import heapq
 import math
 import shutil
 import sqlite3
@@ -62,8 +63,13 @@ from maliput.api import LanePosition, Which
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_TEMPLATE_GPKG = SCRIPT_DIR / ".." / ".." / "schema" / "tools" / "template.gpkg"
 
-# Sampling resolution: number of points per lane boundary
+# Sampling budget: maximum number of points per lane boundary.
+# The adaptive sampler may use fewer points for straight geometry.
 NUM_SAMPLES = 50
+
+# Maximum allowed deviation in meters between the sampled polyline and the
+# underlying boundary geometry before adaptive refinement is triggered.
+MAX_CHORD_ERROR = 5e-2
 
 # GeoPackage SRS ID for the local Cartesian coordinate system
 SRS_ID = 100000
@@ -95,7 +101,16 @@ def parse_args():
         "--num-samples",
         type=int,
         default=NUM_SAMPLES,
-        help=f"Number of sample points per lane boundary (default: {NUM_SAMPLES}).",
+        help=f"Maximum number of sample points per lane boundary (default: {NUM_SAMPLES}).",
+    )
+    parser.add_argument(
+        "--max-chord-error",
+        type=float,
+        default=MAX_CHORD_ERROR,
+        help=(
+            "Maximum boundary polyline deviation in meters before adaptive refinement "
+            f"adds more samples (default: {MAX_CHORD_ERROR})."
+        ),
     )
     parser.add_argument(
         "--linear-tolerance",
@@ -110,7 +125,7 @@ def parse_args():
     parser.add_argument(
         "--omit-nondrivable-lanes",
         action="store_true",
-        default=False,
+        default=True,
         help="Omit non-drivable lanes (sidewalks, shoulders, etc.).",
     )
     parser.add_argument(
@@ -165,27 +180,111 @@ def build_gpkg_linestring_z(points_3d, srs_id=SRS_ID):
 # Lane boundary sampling
 # -----------------------------------------------------------------------------
 
-def sample_boundary(lane, side, num_samples=NUM_SAMPLES):
+def boundary_r_at_s(lane, side, s):
+    """Return the lateral boundary coordinate for a lane side at s."""
+    bounds = lane.lane_bounds(s)
+    return bounds.max_r() if side == "left" else bounds.min_r()
+
+
+def sample_boundary_point(lane, side, s):
+    """Sample a boundary point and its curvature at a given s position."""
+    r = boundary_r_at_s(lane, side, s)
+    lane_position = LanePosition(s, r, 0.0)
+    pos = lane.ToInertialPosition(lane_position)
+    v = pos.xyz()
+    return (v[0], v[1], v[2]), abs(lane.GetCurvature(lane_position))
+
+
+def estimate_arc_deviation(chord_length, curvature):
+    """Estimate arc-to-chord deviation for a circular arc segment."""
+    if curvature <= 0.0 or chord_length <= 0.0:
+        return 0.0
+
+    radius = 1.0 / curvature
+    half_chord = chord_length / 2.0
+    if half_chord >= radius:
+        return float("inf")
+
+    return radius - math.sqrt(radius * radius - half_chord * half_chord)
+
+
+def midpoint_deviation(start_point, midpoint, end_point):
+    """Return the deviation of the sampled midpoint from the linear midpoint."""
+    linear_midpoint = tuple((start + end) / 2.0 for start, end in zip(start_point, end_point))
+    return euclidean_dist(midpoint, linear_midpoint)
+
+
+def sample_boundary(lane, side, max_num_samples=NUM_SAMPLES, max_chord_error=MAX_CHORD_ERROR):
     """Sample a lane boundary as a list of (x, y, z) tuples.
 
     Args:
         lane: A maliput Lane object.
         side: 'left' for the left (max_r) edge, 'right' for the right (min_r) edge.
-        num_samples: Number of evenly-spaced samples along s.
+        max_num_samples: Maximum number of sample points along the boundary.
+        max_chord_error: Maximum allowed arc-to-chord deviation in meters.
 
     Returns:
         List of (x, y, z) tuples in the lane's s-increasing direction.
     """
-    points = []
+    if max_num_samples < 2:
+        raise ValueError("max_num_samples must be at least 2.")
+
     length = lane.length()
-    for i in range(num_samples):
-        s = length * i / (num_samples - 1)
-        bounds = lane.lane_bounds(s)
-        r = bounds.max_r() if side == "left" else bounds.min_r()
-        pos = lane.ToInertialPosition(LanePosition(s, r, 0.0))
-        v = pos.xyz()
-        points.append((v[0], v[1], v[2]))
-    return points
+    cache = {}
+
+    def get_sample(s):
+        sample = cache.get(s)
+        if sample is None:
+            sample = sample_boundary_point(lane, side, s)
+            cache[s] = sample
+        return sample
+
+    if math.isclose(length, 0.0):
+        point, _ = get_sample(0.0)
+        return [point, point]
+
+    accepted_s = {0.0, length}
+    segments = []
+    sequence = 0
+
+    def push_segment(s0, s1):
+        nonlocal sequence
+
+        if s1 <= s0:
+            return
+
+        mid_s = 0.5 * (s0 + s1)
+        if math.isclose(mid_s, s0) or math.isclose(mid_s, s1):
+            return
+
+        start_point, start_curvature = get_sample(s0)
+        midpoint, mid_curvature = get_sample(mid_s)
+        end_point, end_curvature = get_sample(s1)
+
+        curvature_bound = estimate_arc_deviation(
+            euclidean_dist(start_point, end_point),
+            max(start_curvature, mid_curvature, end_curvature),
+        )
+        deviation = max(curvature_bound, midpoint_deviation(start_point, midpoint, end_point))
+        heapq.heappush(segments, (-deviation, sequence, s0, mid_s, s1))
+        sequence += 1
+
+    push_segment(0.0, length)
+
+    while segments and len(accepted_s) < max_num_samples:
+        negative_deviation, _, s0, mid_s, s1 = heapq.heappop(segments)
+        deviation = -negative_deviation
+        if deviation <= max_chord_error:
+            break
+
+        if mid_s in accepted_s:
+            continue
+
+        accepted_s.add(mid_s)
+        push_segment(s0, mid_s)
+        push_segment(mid_s, s1)
+
+    return [get_sample(s)[0] for s in sorted(accepted_s)]
 
 
 def euclidean_dist(p1, p2):
@@ -216,6 +315,24 @@ def boundaries_match(pts_a, pts_b, tolerance=0.5):
     return False, False
 
 
+def lane_type_to_gpkg(lane):
+    """Map maliput lane type enum to a stable GeoPackage lane_type string."""
+    lane_type_name = str(lane.type())
+
+    if lane_type_name.endswith("kDriving"):
+        return "driving"
+    if lane_type_name.endswith("kShoulder"):
+        return "shoulder"
+    if lane_type_name.endswith("kWalking"):
+        return "walking"
+    if lane_type_name.endswith("kBiking"):
+        return "biking"
+    if lane_type_name.endswith("kParking"):
+        return "parking"
+
+    return "other"
+
+
 # -----------------------------------------------------------------------------
 # Segment boundary extraction
 # -----------------------------------------------------------------------------
@@ -235,7 +352,7 @@ def order_lanes_left_to_right(segment):
     return ordered
 
 
-def extract_segment_boundaries(segment, num_samples=NUM_SAMPLES):
+def extract_segment_boundaries(segment, max_num_samples=NUM_SAMPLES, max_chord_error=MAX_CHORD_ERROR):
     """Extract unique boundaries and lane→boundary mappings for one segment.
 
     For N laterally-adjacent lanes, there are N+1 unique boundaries.
@@ -265,7 +382,7 @@ def extract_segment_boundaries(segment, num_samples=NUM_SAMPLES):
         if lane_pos == 0:
             # Leftmost lane: its left boundary is new
             bid = f"{seg_id}_b{boundary_idx}"
-            pts = sample_boundary(lane, "left", num_samples)
+            pts = sample_boundary(lane, "left", max_num_samples, max_chord_error)
             boundaries[bid] = pts
             info["left_boundary_id"] = bid
             info["left_inverted"] = False
@@ -277,7 +394,7 @@ def extract_segment_boundaries(segment, num_samples=NUM_SAMPLES):
             shared_pts = boundaries[shared_bid]
 
             # Check if this lane sees the shared boundary in the same direction
-            my_left_pts = sample_boundary(lane, "left", num_samples)
+            my_left_pts = sample_boundary(lane, "left", max_num_samples, max_chord_error)
             match, inverted = boundaries_match(shared_pts, my_left_pts)
             if match:
                 info["left_boundary_id"] = shared_bid
@@ -292,7 +409,7 @@ def extract_segment_boundaries(segment, num_samples=NUM_SAMPLES):
 
         # ---- Right boundary ----
         bid = f"{seg_id}_b{boundary_idx}"
-        pts = sample_boundary(lane, "right", num_samples)
+        pts = sample_boundary(lane, "right", max_num_samples, max_chord_error)
         boundaries[bid] = pts
         info["right_boundary_id"] = bid
         info["right_inverted"] = False
@@ -352,7 +469,8 @@ def main():
     else:
         output_gpkg = Path.cwd() / f"{xodr_path.stem}.gpkg"
 
-    num_samples = args.num_samples
+    max_num_samples = args.num_samples
+    max_chord_error = args.max_chord_error
     linear_tolerance = args.linear_tolerance
     angular_tolerance = args.angular_tolerance
     omit_nondrivable = "true" if args.omit_nondrivable_lanes else "false"
@@ -394,7 +512,11 @@ def main():
             segments.append((s_id, j_id, s_id))
 
             # Extract boundaries and per-lane mapping
-            seg_boundaries, seg_lane_info = extract_segment_boundaries(segment, num_samples)
+            seg_boundaries, seg_lane_info = extract_segment_boundaries(
+                segment,
+                max_num_samples,
+                max_chord_error,
+            )
             all_boundaries.update(seg_boundaries)
 
             for l_idx in range(segment.num_lanes()):
@@ -404,9 +526,7 @@ def main():
                 all_lanes.append((
                     l_id,
                     s_id,
-                    # all lanes are set to driving. We should use lane.type() to determine the actual type,
-                    # but malidrive's lane types are not fully supported in the current maliput python API version.
-                    "driving",
+                    lane_type_to_gpkg(lane),
                     "forward",    # default direction
                     info["left_boundary_id"],
                     info["left_inverted"],
@@ -438,6 +558,10 @@ def main():
         db.execute(
             "INSERT OR REPLACE INTO maliput_metadata (key, value) VALUES (?, ?)",
             ("angular_tolerance", angular_tolerance),
+        )
+        db.execute(
+            "INSERT OR REPLACE INTO maliput_metadata (key, value) VALUES (?, ?)",
+            ("max_chord_error", str(max_chord_error)),
         )
         db.execute(
             "INSERT OR REPLACE INTO maliput_metadata (key, value) VALUES (?, ?)",
