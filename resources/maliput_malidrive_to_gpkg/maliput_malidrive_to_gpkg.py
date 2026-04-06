@@ -84,7 +84,11 @@ ANGULAR_TOLERANCE = "1e-3"
 # -----------------------------------------------------------------------------
 
 def parse_args():
-    """Parse command-line arguments."""
+    """Parse command-line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed CLI arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Convert an OpenDRIVE (.xodr) road network to GeoPackage (.gpkg) format.",
     )
@@ -181,13 +185,32 @@ def build_gpkg_linestring_z(points_3d, srs_id=SRS_ID):
 # -----------------------------------------------------------------------------
 
 def boundary_r_at_s(lane, side, s):
-    """Return the lateral boundary coordinate for a lane side at s."""
+    """Return the lateral boundary coordinate for a lane side at s.
+
+    Args:
+        lane: A maliput Lane object.
+        side: Boundary side selector, either "left" or "right".
+        s: Longitudinal lane coordinate in meters.
+
+    Returns:
+        float: Lateral r coordinate for the requested lane boundary.
+    """
     bounds = lane.lane_bounds(s)
     return bounds.max_r() if side == "left" else bounds.min_r()
 
 
 def sample_boundary_point(lane, side, s):
-    """Sample a boundary point and its curvature at a given s position."""
+    """Sample a boundary point and its curvature at a given s position.
+
+    Args:
+        lane: A maliput Lane object.
+        side: Boundary side selector, either "left" or "right".
+        s: Longitudinal lane coordinate in meters.
+
+    Returns:
+        Tuple[Tuple[float, float, float], float]: A 3D point in inertial space
+            and the absolute lane curvature at that sample.
+    """
     r = boundary_r_at_s(lane, side, s)
     lane_position = LanePosition(s, r, 0.0)
     pos = lane.ToInertialPosition(lane_position)
@@ -196,7 +219,17 @@ def sample_boundary_point(lane, side, s):
 
 
 def estimate_arc_deviation(chord_length, curvature):
-    """Estimate arc-to-chord deviation for a circular arc segment."""
+    """Estimate arc-to-chord deviation for a circular arc segment.
+
+    Args:
+        chord_length: Chord length in meters between segment endpoints.
+        curvature: Curvature magnitude in 1/meters.
+
+    Returns:
+        float: Estimated sagitta (arc-to-chord deviation) in meters. Returns
+            0.0 for degenerate flat/zero-length input, and inf when the chord
+            is not representable by the curvature radius.
+    """
     if curvature <= 0.0 or chord_length <= 0.0:
         return 0.0
 
@@ -209,7 +242,16 @@ def estimate_arc_deviation(chord_length, curvature):
 
 
 def midpoint_deviation(start_point, midpoint, end_point):
-    """Return the deviation of the sampled midpoint from the linear midpoint."""
+    """Return the deviation of the sampled midpoint from the linear midpoint.
+
+    Args:
+        start_point: Segment start point as (x, y, z).
+        midpoint: Sampled midpoint as (x, y, z).
+        end_point: Segment end point as (x, y, z).
+
+    Returns:
+        float: Euclidean distance between sampled and linear midpoints.
+    """
     linear_midpoint = tuple((start + end) / 2.0 for start, end in zip(start_point, end_point))
     return euclidean_dist(midpoint, linear_midpoint)
 
@@ -288,12 +330,25 @@ def sample_boundary(lane, side, max_num_samples=NUM_SAMPLES, max_chord_error=MAX
 
 
 def euclidean_dist(p1, p2):
-    """3D Euclidean distance between two (x,y,z) tuples."""
+    """Compute the 3D Euclidean distance between two points.
+
+    Args:
+        p1: First point as (x, y, z).
+        p2: Second point as (x, y, z).
+
+    Returns:
+        float: Euclidean distance between p1 and p2.
+    """
     return math.sqrt(sum((a - b) ** 2 for a, b in zip(p1, p2)))
 
 
 def boundaries_match(pts_a, pts_b, tolerance=0.5):
     """Check if two boundary polylines represent the same physical boundary.
+
+    Args:
+        pts_a: First boundary polyline as a list of (x, y, z) points.
+        pts_b: Second boundary polyline as a list of (x, y, z) points.
+        tolerance: Endpoint distance tolerance in meters for matching.
 
     Returns:
         (True, False) if same direction,
@@ -316,7 +371,14 @@ def boundaries_match(pts_a, pts_b, tolerance=0.5):
 
 
 def lane_type_to_gpkg(lane):
-    """Map maliput lane type enum to a stable GeoPackage lane_type string."""
+    """Map maliput lane type enum to a stable GeoPackage lane_type string.
+
+    Args:
+        lane: A maliput Lane object.
+
+    Returns:
+        str: Normalized lane type string for storage in GeoPackage.
+    """
     lane_type_name = str(lane.type())
 
     if lane_type_name.endswith("kDriving"):
@@ -338,7 +400,14 @@ def lane_type_to_gpkg(lane):
 # -----------------------------------------------------------------------------
 
 def order_lanes_left_to_right(segment):
-    """Return a list of lanes in a segment ordered from leftmost to rightmost."""
+    """Return segment lanes ordered from leftmost to rightmost.
+
+    Args:
+        segment: A maliput Segment object.
+
+    Returns:
+        List: Segment lanes ordered from left to right.
+    """
     # Start from any lane and find the leftmost
     lane = segment.lane(0)
     while lane.to_left() is not None:
@@ -357,6 +426,11 @@ def extract_segment_boundaries(segment, max_num_samples=NUM_SAMPLES, max_chord_e
 
     For N laterally-adjacent lanes, there are N+1 unique boundaries.
     Adjacent lanes share the boundary between them.
+
+    Args:
+        segment: A maliput Segment object.
+        max_num_samples: Maximum number of sample points per boundary.
+        max_chord_error: Maximum allowed arc-to-chord deviation in meters.
 
     Returns:
         boundaries: dict mapping boundary_id → list of (x,y,z) points
@@ -427,6 +501,9 @@ def extract_segment_boundaries(segment, max_num_samples=NUM_SAMPLES, max_chord_e
 def extract_branch_points(road_geometry):
     """Extract branch point data for the branch_point_lanes table.
 
+    Args:
+        road_geometry: A maliput RoadGeometry object.
+
     Returns:
         list of (branch_point_id, lane_id, side, lane_end) tuples.
     """
@@ -457,6 +534,17 @@ def extract_branch_points(road_geometry):
 # -----------------------------------------------------------------------------
 
 def main():
+    """Run the OpenDRIVE-to-GeoPackage migration workflow.
+
+    This function parses command-line options, loads the OpenDRIVE map through
+    the maliput_malidrive backend, extracts junction/segment/lane/boundary/
+    branch-point data, and writes the result to a GeoPackage file using the
+    maliput_geopackage schema.
+
+    Raises:
+        FileNotFoundError: If the input .xodr file or template .gpkg file does
+            not exist.
+    """
     args = parse_args()
 
     xodr_path = Path(args.xodr_file).resolve()
