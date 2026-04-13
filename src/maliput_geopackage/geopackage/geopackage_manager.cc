@@ -56,6 +56,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   const auto& gpkg_boundaries = parser_.GetLaneBoundaries();
   const auto& gpkg_branch_points = parser_.GetBranchPointLanes();
   const auto& gpkg_adjacent_lanes = parser_.GetAdjacentLanes();
+  const auto& gpkg_speed_limits = parser_.GetSpeedLimits();
 
   // Build Lanes (without segment/junction hierarchy yet)
   maliput::log()->trace("Building lanes from parsed GeoPackage data...");
@@ -93,7 +94,18 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
     }
 
     // Create Lane (empty pred/succ for now)
-    lanes.emplace(lane_id, Lane{lane_id, left_boundary, right_boundary, left_lane_id, right_lane_id, {}, {}});
+    Lane lane_obj{lane_id, left_boundary, right_boundary, left_lane_id, right_lane_id, {}, {}};
+
+    // Speed limits
+    auto sl_it = gpkg_speed_limits.find(lane_id);
+    if (sl_it != gpkg_speed_limits.end()) {
+      for (const auto& gpkg_sl : sl_it->second) {
+        lane_obj.speed_limits.push_back({gpkg_sl.s_start, gpkg_sl.s_end, gpkg_sl.min_speed, gpkg_sl.max_speed,
+                                         gpkg_sl.description, gpkg_sl.severity});
+      }
+    }
+
+    lanes.emplace(lane_id, std::move(lane_obj));
   }
 
   // Topology (Branch Points)

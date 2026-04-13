@@ -105,6 +105,9 @@ class TempGeoPackage {
         "left_boundary_inverted INTEGER, right_boundary_id TEXT, right_boundary_inverted INTEGER)");
     ExecuteSql("CREATE TABLE branch_point_lanes (branch_point_id TEXT, lane_id TEXT, side TEXT, lane_end TEXT)");
     ExecuteSql("CREATE TABLE view_adjacent_lanes (lane_id TEXT, adjacent_lane_id TEXT, side TEXT)");
+    ExecuteSql(
+        "CREATE TABLE speed_limits (speed_limit_id TEXT, lane_id TEXT, s_start REAL, s_end REAL, max_speed REAL, "
+        "min_speed REAL DEFAULT 0.0, description TEXT, severity INTEGER DEFAULT 0)");
   }
 
   std::string filename_;
@@ -320,6 +323,69 @@ TEST_F(GeoPackageParserTest, ParseGeometryWithoutZ) {
   temp_gpkg.InsertLaneBoundary("b1", blob);
 
   EXPECT_THROW(GeoPackageParser{temp_gpkg.GetPath()}, maliput::common::assertion_error);
+}
+
+// -- Speed limit tests ---------------------------------------------------------
+
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsEmpty) {
+  TempGeoPackage temp_gpkg;
+  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  GeoPackageParser parser(temp_gpkg.GetPath());
+  EXPECT_TRUE(parser.GetSpeedLimits().empty());
+}
+
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsSingle) {
+  TempGeoPackage temp_gpkg;
+  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp_gpkg.ExecuteSql(
+      "INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, min_speed, description, "
+      "severity) VALUES ('sl_1', 'lane_1', 0.0, 50.0, 13.89, 0.0, 'Urban road. [m/s]', 0)");
+  GeoPackageParser parser(temp_gpkg.GetPath());
+  const auto& speed_limits = parser.GetSpeedLimits();
+  ASSERT_EQ(1u, speed_limits.size());
+  auto it = speed_limits.find("lane_1");
+  ASSERT_NE(speed_limits.end(), it);
+  ASSERT_EQ(1u, it->second.size());
+  EXPECT_EQ("lane_1", it->second[0].lane_id);
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].s_start);
+  EXPECT_DOUBLE_EQ(50.0, it->second[0].s_end);
+  EXPECT_DOUBLE_EQ(13.89, it->second[0].max_speed);
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].min_speed);
+  EXPECT_EQ("Urban road. [m/s]", it->second[0].description);
+  EXPECT_EQ(0, it->second[0].severity);
+}
+
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsMultiplePerLane) {
+  TempGeoPackage temp_gpkg;
+  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_1', 'lane_1', 0.0, 25.0, 13.89, 0.0, 'Zone A', 0)");
+  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_2', 'lane_1', 25.0, 50.0, 8.33, 0.0, 'Zone B', 1)");
+  GeoPackageParser parser(temp_gpkg.GetPath());
+  const auto& speed_limits = parser.GetSpeedLimits();
+  ASSERT_EQ(1u, speed_limits.size());
+  auto it = speed_limits.find("lane_1");
+  ASSERT_NE(speed_limits.end(), it);
+  ASSERT_EQ(2u, it->second.size());
+}
+
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsMultipleLanes) {
+  TempGeoPackage temp_gpkg;
+  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_1', 'lane_1', 0.0, 50.0, 13.89, 0.0, 'Lane 1', 0)");
+  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_2', 'lane_2', 0.0, 50.0, 8.33, 0.0, 'Lane 2', 0)");
+  GeoPackageParser parser(temp_gpkg.GetPath());
+  const auto& speed_limits = parser.GetSpeedLimits();
+  ASSERT_EQ(2u, speed_limits.size());
+  EXPECT_NE(speed_limits.end(), speed_limits.find("lane_1"));
+  EXPECT_NE(speed_limits.end(), speed_limits.find("lane_2"));
+}
+
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsTableAbsent) {
+  TempGeoPackage temp_gpkg;
+  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp_gpkg.DropTable("speed_limits");
+  GeoPackageParser parser(temp_gpkg.GetPath());
+  EXPECT_TRUE(parser.GetSpeedLimits().empty());
 }
 
 }  // namespace test

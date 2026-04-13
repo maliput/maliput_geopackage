@@ -73,6 +73,9 @@ class SqliteStatement {
   /// Get the integer value of the specified column in the current row. Returns 0 if the column is NULL.
   int GetColumnInt(int col);
 
+  /// Get the double value of the specified column in the current row. Returns 0.0 if the column is NULL.
+  double GetColumnDouble(int col);
+
   /// Get a pointer to the blob data of the specified column in the current row. Returns nullptr if the column is NULL.
   const void* GetColumnBlob(int col);
 

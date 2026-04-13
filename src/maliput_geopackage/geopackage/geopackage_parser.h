@@ -84,6 +84,17 @@ struct GPKGAdjacentLane {
   std::string side;  // 'left' or 'right'
 };
 
+/// Speed limits table containing speed limit rules for lanes in the road network.
+struct GPKGSpeedLimit {
+  std::string lane_id;
+  double s_start;
+  double s_end;
+  double max_speed;
+  double min_speed;
+  std::string description;
+  int severity;
+};
+
 /// GeoPackageParser is responsible for loading a GeoPackage file, parsing it and filling temporary data structures to
 /// hold the geopackage information.
 class GeoPackageParser {
@@ -111,6 +122,7 @@ class GeoPackageParser {
   const std::unordered_map<std::string, std::vector<GPKGBranchPointLane>>& GetBranchPointLanes() const {
     return branch_point_lanes_;
   }
+  const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GetSpeedLimits() const { return speed_limits_; }
 
  private:
   // Opens the GeoPackage database.
@@ -153,6 +165,9 @@ class GeoPackageParser {
   // Parses the adjacent lanes from the GeoPackage.
   std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> ParseAdjacentLanes(const SqliteDatabase& db) const;
 
+  // Parses speed limits from the GeoPackage. Returns a map keyed by lane_id.
+  std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> ParseSpeedLimits(const SqliteDatabase& db) const;
+
   // Data structures to hold the parsed data from the GeoPackage file
   // Metadata key-value pairs from the maliput_metadata table.
   std::unordered_map<std::string, std::string> maliput_metadata_;
@@ -169,6 +184,8 @@ class GeoPackageParser {
   std::unordered_map<std::string, std::vector<GPKGBranchPointLane>> branch_point_lanes_;
   // Adjacent lanes parsed from the adjacent_lanes table. Keyed by lane_id with multiple adjacent lanes per lane.
   std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> adjacent_lanes_;
+  // Speed limits parsed from the speed_limits table. Keyed by lane_id with multiple speed limits per lane.
+  std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> speed_limits_;
 };
 
 }  // namespace geopackage

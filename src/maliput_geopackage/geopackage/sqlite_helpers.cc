@@ -92,6 +92,8 @@ std::string SqliteStatement::GetColumnText(int col) {
 
 int SqliteStatement::GetColumnInt(int col) { return sqlite3_column_int(stmt_.get(), col); }
 
+double SqliteStatement::GetColumnDouble(int col) { return sqlite3_column_double(stmt_.get(), col); }
+
 const void* SqliteStatement::GetColumnBlob(int col) { return sqlite3_column_blob(stmt_.get(), col); }
 
 int SqliteStatement::GetColumnBytes(int col) { return sqlite3_column_bytes(stmt_.get(), col); }
