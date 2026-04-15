@@ -57,6 +57,9 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   /// Destructor.
   ~GeoPackageManager();
 
+  /// Returns speed limits parsed from the GeoPackage, keyed by lane id.
+  const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GetSpeedLimits() const;
+
  private:
   // Gets the map's junctions.
   const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& DoGetJunctions()

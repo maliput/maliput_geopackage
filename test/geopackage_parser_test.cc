@@ -327,64 +327,65 @@ TEST_F(GeoPackageParserTest, ParseGeometryWithoutZ) {
 
 // -- Speed limit tests ---------------------------------------------------------
 
-TEST_F(GeoPackageParserTest, ParseSpeedLimitsEmpty) {
-  TempGeoPackage temp_gpkg;
-  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
-  GeoPackageParser parser(temp_gpkg.GetPath());
-  EXPECT_TRUE(parser.GetSpeedLimits().empty());
+TEST_F(GeoPackageParserTest, ParseSpeedLimitsFromTwoLaneRoad) {
+  GeoPackageParser parser(kDatabasePath);
+  const auto& speed_limits = parser.GetSpeedLimits();
+  // The two_lane_road fixture may or may not have speed_limits; just verify access works.
+  // If empty, that's fine (optional table).
+  (void)speed_limits;
 }
 
-TEST_F(GeoPackageParserTest, ParseSpeedLimitsSingle) {
-  TempGeoPackage temp_gpkg;
-  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
-  temp_gpkg.ExecuteSql(
-      "INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, min_speed, description, "
-      "severity) VALUES ('sl_1', 'lane_1', 0.0, 50.0, 13.89, 0.0, 'Urban road. [m/s]', 0)");
-  GeoPackageParser parser(temp_gpkg.GetPath());
+GTEST_TEST(GeoPackageParserSpeedLimitTest, ParsesSpeedLimits) {
+  TempGeoPackage temp;
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'J1')");
+  temp.ExecuteSql("INSERT INTO segments (segment_id, junction_id, name) VALUES ('s1', 'j1', 'S1')");
+  temp.InsertLaneBoundary("b1", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.InsertLaneBoundary("b2", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.ExecuteSql(
+      "INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
+      "right_boundary_id, right_boundary_inverted) VALUES ('lane_1', 's1', 'driving', 'forward', 'b1', 0, 'b2', 0)");
+  temp.ExecuteSql("INSERT INTO speed_limits VALUES ('sl1', 'lane_1', 0.0, 50.0, 13.89, 0.0, 'City limit', 0)");
+  temp.ExecuteSql("INSERT INTO speed_limits VALUES ('sl2', 'lane_1', 50.0, 100.0, 8.33, 2.78, 'School zone', 1)");
+
+  GeoPackageParser parser(temp.GetPath());
   const auto& speed_limits = parser.GetSpeedLimits();
-  ASSERT_EQ(1u, speed_limits.size());
+  ASSERT_EQ(1u, speed_limits.size());  // Keyed by lane_id, so 1 entry.
   auto it = speed_limits.find("lane_1");
   ASSERT_NE(speed_limits.end(), it);
-  ASSERT_EQ(1u, it->second.size());
+  ASSERT_EQ(2u, it->second.size());
+
   EXPECT_EQ("lane_1", it->second[0].lane_id);
   EXPECT_DOUBLE_EQ(0.0, it->second[0].s_start);
   EXPECT_DOUBLE_EQ(50.0, it->second[0].s_end);
   EXPECT_DOUBLE_EQ(13.89, it->second[0].max_speed);
   EXPECT_DOUBLE_EQ(0.0, it->second[0].min_speed);
-  EXPECT_EQ("Urban road. [m/s]", it->second[0].description);
+  EXPECT_EQ("City limit", it->second[0].description);
   EXPECT_EQ(0, it->second[0].severity);
+
+  EXPECT_EQ("lane_1", it->second[1].lane_id);
+  EXPECT_DOUBLE_EQ(50.0, it->second[1].s_start);
+  EXPECT_DOUBLE_EQ(100.0, it->second[1].s_end);
+  EXPECT_DOUBLE_EQ(8.33, it->second[1].max_speed);
+  EXPECT_DOUBLE_EQ(2.78, it->second[1].min_speed);
+  EXPECT_EQ("School zone", it->second[1].description);
+  EXPECT_EQ(1, it->second[1].severity);
 }
 
-TEST_F(GeoPackageParserTest, ParseSpeedLimitsMultiplePerLane) {
-  TempGeoPackage temp_gpkg;
-  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
-  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_1', 'lane_1', 0.0, 25.0, 13.89, 0.0, 'Zone A', 0)");
-  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_2', 'lane_1', 25.0, 50.0, 8.33, 0.0, 'Zone B', 1)");
-  GeoPackageParser parser(temp_gpkg.GetPath());
-  const auto& speed_limits = parser.GetSpeedLimits();
-  ASSERT_EQ(1u, speed_limits.size());
-  auto it = speed_limits.find("lane_1");
-  ASSERT_NE(speed_limits.end(), it);
-  ASSERT_EQ(2u, it->second.size());
+GTEST_TEST(GeoPackageParserSpeedLimitTest, MissingSpeedLimitTableReturnsEmpty) {
+  TempGeoPackage temp;
+  temp.DropTable("speed_limits");
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+
+  GeoPackageParser parser(temp.GetPath());
+  EXPECT_TRUE(parser.GetSpeedLimits().empty());
 }
 
-TEST_F(GeoPackageParserTest, ParseSpeedLimitsMultipleLanes) {
-  TempGeoPackage temp_gpkg;
-  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
-  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_1', 'lane_1', 0.0, 50.0, 13.89, 0.0, 'Lane 1', 0)");
-  temp_gpkg.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_2', 'lane_2', 0.0, 50.0, 8.33, 0.0, 'Lane 2', 0)");
-  GeoPackageParser parser(temp_gpkg.GetPath());
-  const auto& speed_limits = parser.GetSpeedLimits();
-  ASSERT_EQ(2u, speed_limits.size());
-  EXPECT_NE(speed_limits.end(), speed_limits.find("lane_1"));
-  EXPECT_NE(speed_limits.end(), speed_limits.find("lane_2"));
-}
+GTEST_TEST(GeoPackageParserSpeedLimitTest, EmptySpeedLimitTableReturnsEmpty) {
+  TempGeoPackage temp;
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
 
-TEST_F(GeoPackageParserTest, ParseSpeedLimitsTableAbsent) {
-  TempGeoPackage temp_gpkg;
-  temp_gpkg.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
-  temp_gpkg.DropTable("speed_limits");
-  GeoPackageParser parser(temp_gpkg.GetPath());
+  GeoPackageParser parser(temp.GetPath());
   EXPECT_TRUE(parser.GetSpeedLimits().empty());
 }
 

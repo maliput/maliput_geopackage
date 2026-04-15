@@ -309,7 +309,7 @@ TEST(GeoPackageManagerTest, GeoReferenceInfoIsReturned) {
 
 // -- Speed limit tests ---------------------------------------------------------
 
-TEST(GeoPackageManagerTest, SpeedLimitsAreWiredToLanes) {
+TEST(GeoPackageManagerTest, SpeedLimitsAreExposedViaGetSpeedLimits) {
   TempGeoPackage temp;
   temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
   temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main')");
@@ -325,30 +325,27 @@ TEST(GeoPackageManagerTest, SpeedLimitsAreWiredToLanes) {
       "INSERT INTO speed_limits VALUES ('sl_2', 'lane_1', 100.0, 200.0, 8.33, 2.78, 'School zone. [m/s]', 1)");
 
   GeoPackageManager dut{temp.GetPath()};
-  const auto& junctions = dut.GetJunctions();
-  ASSERT_EQ(1u, junctions.size());
-  const auto& segment = junctions.at("j1").segments.at("seg1");
-  ASSERT_EQ(1u, segment.lanes.size());
-  const auto& lane = segment.lanes[0];
-  EXPECT_EQ("lane_1", lane.id);
-  ASSERT_EQ(2u, lane.speed_limits.size());
+  const auto& speed_limits = dut.GetSpeedLimits();
+  auto it = speed_limits.find("lane_1");
+  ASSERT_NE(speed_limits.end(), it);
+  ASSERT_EQ(2u, it->second.size());
 
-  EXPECT_DOUBLE_EQ(0.0, lane.speed_limits[0].s_start);
-  EXPECT_DOUBLE_EQ(100.0, lane.speed_limits[0].s_end);
-  EXPECT_DOUBLE_EQ(0.0, lane.speed_limits[0].min);
-  EXPECT_DOUBLE_EQ(13.89, lane.speed_limits[0].max);
-  EXPECT_EQ("Urban road. [m/s]", lane.speed_limits[0].description);
-  EXPECT_EQ(0, lane.speed_limits[0].severity);
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].s_start);
+  EXPECT_DOUBLE_EQ(100.0, it->second[0].s_end);
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].min_speed);
+  EXPECT_DOUBLE_EQ(13.89, it->second[0].max_speed);
+  EXPECT_EQ("Urban road. [m/s]", it->second[0].description);
+  EXPECT_EQ(0, it->second[0].severity);
 
-  EXPECT_DOUBLE_EQ(100.0, lane.speed_limits[1].s_start);
-  EXPECT_DOUBLE_EQ(200.0, lane.speed_limits[1].s_end);
-  EXPECT_DOUBLE_EQ(2.78, lane.speed_limits[1].min);
-  EXPECT_DOUBLE_EQ(8.33, lane.speed_limits[1].max);
-  EXPECT_EQ("School zone. [m/s]", lane.speed_limits[1].description);
-  EXPECT_EQ(1, lane.speed_limits[1].severity);
+  EXPECT_DOUBLE_EQ(100.0, it->second[1].s_start);
+  EXPECT_DOUBLE_EQ(200.0, it->second[1].s_end);
+  EXPECT_DOUBLE_EQ(2.78, it->second[1].min_speed);
+  EXPECT_DOUBLE_EQ(8.33, it->second[1].max_speed);
+  EXPECT_EQ("School zone. [m/s]", it->second[1].description);
+  EXPECT_EQ(1, it->second[1].severity);
 }
 
-TEST(GeoPackageManagerTest, NoSpeedLimitsProducesEmptyVector) {
+TEST(GeoPackageManagerTest, NoSpeedLimitsProducesEmptyMap) {
   TempGeoPackage temp;
   temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
   temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main')");
@@ -359,8 +356,7 @@ TEST(GeoPackageManagerTest, NoSpeedLimitsProducesEmptyVector) {
       "right_boundary_id, right_boundary_inverted) VALUES ('lane_1', 'seg1', 'driving', 'forward', 'b1', 0, 'b1', 0)");
 
   GeoPackageManager dut{temp.GetPath()};
-  const auto& lane = dut.GetJunctions().at("j1").segments.at("seg1").lanes[0];
-  EXPECT_TRUE(lane.speed_limits.empty());
+  EXPECT_TRUE(dut.GetSpeedLimits().empty());
 }
 
 }  // namespace
