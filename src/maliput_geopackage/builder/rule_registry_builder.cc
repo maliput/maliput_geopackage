@@ -58,24 +58,26 @@ std::unique_ptr<maliput::api::rules::RuleRegistry> RuleRegistryBuilder::operator
                            : maliput::LoadRuleRegistryFromFile(rule_registry_file_path_.value());
 
   // Register Speed-Limit Rule Type from GeoPackage data if not already registered.
-  if (!speed_limits_.empty()) {
-    const auto existing = rule_registry->GetPossibleStatesOfRuleType(maliput::SpeedLimitRuleTypeId());
-    if (!existing.has_value()) {
-      maliput::log()->trace("Registering Speed-Limit Rule Type from GeoPackage data...");
-      std::set<RangeValueRule::Range> unique_ranges;
-      for (const auto& [lane_id, lane_speed_limits] : speed_limits_) {
-        for (const auto& sl : lane_speed_limits) {
-          unique_ranges.emplace(sl.severity, Rule::RelatedRules{}, Rule::RelatedUniqueIds{}, sl.description,
-                                sl.min_speed, sl.max_speed);
-        }
-      }
-      rule_registry->RegisterRangeValueRule(
-          maliput::SpeedLimitRuleTypeId(),
-          std::vector<RangeValueRule::Range>(unique_ranges.begin(), unique_ranges.end()));
-    } else {
-      maliput::log()->trace("Speed-Limit Rule Type already registered from YAML, skipping GeoPackage registration.");
+  if (speed_limits_.empty()) {
+    return rule_registry;
+  }
+  const auto existing = rule_registry->GetPossibleStatesOfRuleType(maliput::SpeedLimitRuleTypeId());
+  if (existing.has_value()) {
+    maliput::log()->trace("Speed-Limit Rule Type already registered from YAML, skipping GeoPackage registration.");
+    return rule_registry;
+  }
+
+  maliput::log()->trace("Registering Speed-Limit Rule Type from GeoPackage data...");
+  std::set<RangeValueRule::Range> unique_ranges;
+  for (const auto& [lane_id, lane_speed_limits] : speed_limits_) {
+    for (const auto& sl : lane_speed_limits) {
+      unique_ranges.emplace(sl.severity, Rule::RelatedRules{}, Rule::RelatedUniqueIds{}, sl.description,
+                            sl.min_speed, sl.max_speed);
     }
   }
+  rule_registry->RegisterRangeValueRule(
+      maliput::SpeedLimitRuleTypeId(),
+      std::vector<RangeValueRule::Range>(unique_ranges.begin(), unique_ranges.end()));
 
   return rule_registry;
 }
