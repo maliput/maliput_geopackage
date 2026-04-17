@@ -71,13 +71,12 @@ std::unique_ptr<maliput::api::rules::RuleRegistry> RuleRegistryBuilder::operator
   std::set<RangeValueRule::Range> unique_ranges;
   for (const auto& [lane_id, lane_speed_limits] : speed_limits_) {
     for (const auto& sl : lane_speed_limits) {
-      unique_ranges.emplace(sl.severity, Rule::RelatedRules{}, Rule::RelatedUniqueIds{}, sl.description,
-                            sl.min_speed, sl.max_speed);
+      unique_ranges.emplace(sl.severity, Rule::RelatedRules{}, Rule::RelatedUniqueIds{}, sl.description, sl.min_speed,
+                            sl.max_speed);
     }
   }
-  rule_registry->RegisterRangeValueRule(
-      maliput::SpeedLimitRuleTypeId(),
-      std::vector<RangeValueRule::Range>(unique_ranges.begin(), unique_ranges.end()));
+  rule_registry->RegisterRangeValueRule(maliput::SpeedLimitRuleTypeId(),
+                                        std::vector<RangeValueRule::Range>(unique_ranges.begin(), unique_ranges.end()));
 
   return rule_registry;
 }
