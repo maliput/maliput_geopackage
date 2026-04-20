@@ -55,6 +55,8 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
   branch_point_lanes_ = ParseBranchPoints(db);
   maliput::log()->trace("Parsing GeoPackage adjacent lanes...");
   adjacent_lanes_ = ParseAdjacentLanes(db);
+  maliput::log()->trace("Parsing GeoPackage speed limits...");
+  speed_limits_ = ParseSpeedLimits(db);
 }
 
 GeoPackageParser::~GeoPackageParser() = default;
@@ -246,6 +248,26 @@ std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> GeoPackageParser:
     adjacent_lanes[lane_id].push_back({stmt.GetColumnText(1), stmt.GetColumnText(2)});
   }
   return adjacent_lanes;
+}
+
+std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> GeoPackageParser::ParseSpeedLimits(
+    const SqliteDatabase& db) const {
+  // The speed_limits table is optional — return empty if absent.
+  SqliteStatement check_stmt(db.get(), "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='speed_limits'");
+  if (!check_stmt.Step() || check_stmt.GetColumnInt(0) == 0) {
+    return {};
+  }
+
+  SqliteStatement stmt(
+      db.get(),
+      "SELECT speed_limit_id, lane_id, s_start, s_end, max_speed, min_speed, description, severity FROM speed_limits");
+  std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> speed_limits;
+  while (stmt.Step()) {
+    std::string lane_id = stmt.GetColumnText(1);
+    speed_limits[lane_id].push_back({lane_id, stmt.GetColumnDouble(2), stmt.GetColumnDouble(3), stmt.GetColumnDouble(4),
+                                     stmt.GetColumnDouble(5), stmt.GetColumnText(6), stmt.GetColumnInt(7)});
+  }
+  return speed_limits;
 }
 
 }  // namespace geopackage

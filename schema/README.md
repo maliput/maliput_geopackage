@@ -32,6 +32,7 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
       - [`lane_markings`](#lane_markings)
       - [`lane_marking_lines`](#lane_marking_lines)
     - [Traffic Control Tables](#traffic-control-tables)
+      - [`speed_limits`](#speed_limits)
       - [`traffic_lights`](#traffic_lights)
       - [`bulb_groups`](#bulb_groups)
       - [`bulbs`](#bulbs)
@@ -42,6 +43,7 @@ The maliput GeoPackage format stores road network data in a SQLite database foll
     - [Lanes](#lanes-1)
     - [Optional: lane markings (center dashed line)](#optional-lane-markings-center-dashed-line)
     - [Optional: Branch points for connectivity](#optional-branch-points-for-connectivity)
+    - [Optional: Speed limits](#optional-speed-limits)
 
 ## Schema Definition
 
@@ -492,7 +494,83 @@ The marking now applies to the shared boundary between the two lanes, and both l
 
 ### Traffic Control Tables
 
-Traffic lights and stop lines control vehicle movement and signal right-of-way at intersections.
+Traffic control tables define speed limits, traffic lights, and other regulatory elements that govern vehicle behavior on the road network.
+
+#### `speed_limits`
+
+Stores speed limit regulations associated with lanes. Each speed limit applies to a range along a lane's s-coordinate (arc-length), similar to how `lane_markings` apply to ranges along boundaries.
+
+Speed limits are per-lane (not per-boundary), matching how road regulations work: a speed limit governs traffic on a specific lane, potentially varying along its length.
+
+```sql
+CREATE TABLE speed_limits (
+    speed_limit_id TEXT UNIQUE NOT NULL,
+    lane_id TEXT NOT NULL,
+    s_start REAL NOT NULL,
+    s_end REAL NOT NULL,
+    max_speed REAL NOT NULL,
+    min_speed REAL DEFAULT 0.0,
+    description TEXT,
+    severity INTEGER DEFAULT 0,
+    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id),
+    CHECK (s_start >= 0 AND s_end >= s_start),
+    CHECK (max_speed >= 0),
+    CHECK (min_speed >= 0 AND min_speed <= max_speed),
+    CHECK (severity >= 0)
+);
+```
+
+| Column           | Type    | Description                                                               |
+| ---------------- | ------- | ------------------------------------------------------------------------- |
+| `speed_limit_id` | TEXT    | Unique identifier for the speed limit entry                               |
+| `lane_id`        | TEXT    | Reference to the lane this speed limit applies to                         |
+| `s_start`        | REAL    | Start position along the lane (s-coordinate) in meters                    |
+| `s_end`          | REAL    | End position along the lane in meters                                     |
+| `max_speed`      | REAL    | Maximum allowed speed in meters per second (m/s)                          |
+| `min_speed`      | REAL    | Minimum required speed in m/s (default 0, i.e., stopping is allowed)      |
+| `severity`       | INTEGER | Enforcement level: `0` = strict (mandatory), `1` = advisory (recommended) |
+| `description`    | TEXT    | Human-readable description (e.g., `"School zone 30 km/h"`)                |
+
+**Unit Convention:**
+
+All speed values are stored in **meters per second (m/s)**, consistent with maliput's internal representation and the schema's use of metric units throughout. Producers should convert from their source units (km/h, mph, etc.) when populating the table.
+
+| Source unit | Conversion      | Example        |
+| ----------- | --------------- | -------------- |
+| km/h        | value / 3.6     | 30 km/h → 8.33 |
+| mph         | value × 0.44704 | 25 mph → 11.18 |
+
+**Severity Semantics:**
+
+| Value | Meaning  | Example                                        |
+| ----- | -------- | ---------------------------------------------- |
+| `0`   | Strict   | Legally enforced limit (e.g., 50 km/h zone)    |
+| `1`   | Advisory | Recommended limit (e.g., curve advisory speed) |
+
+**Design Notes:**
+
+- **Per-lane, not per-road:** Following the OpenDRIVE model, speed limits are associated with individual lanes. This allows different limits per lane (e.g., a truck lane with lower limits). For a uniform limit across all lanes, insert one row per lane with the same speed value.
+- **Multiple zones per lane:** A lane may have multiple speed limit entries covering different s-ranges (e.g., 50 km/h for the first half, 30 km/h near a school zone).
+- **Gaps are allowed:** If no speed limit row covers a particular s-range, the lane has no explicit speed limit in that zone. Rule-loading code may choose to apply a default.
+- **Mapping to maliput:** Each row maps to one `maliput::api::rules::RangeValueRule` with `SpeedLimitRuleTypeId()`, zone defined by `(lane_id, s_start, s_end)`, and range defined by `(min_speed, max_speed, severity, description)`.
+
+**Example:**
+
+```sql
+-- 50 km/h zone on lane_1 from start to station 80m
+INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, description)
+VALUES ('sl_lane1_zone1', 'lane_1', 0.0, 80.0, 13.89, '50 km/h zone');
+
+-- 30 km/h school zone on lane_1 from 80m to end
+INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, description)
+VALUES ('sl_lane1_zone2', 'lane_1', 80.0, 100.0, 8.33, '30 km/h school zone');
+
+-- Advisory curve speed on lane_2
+INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, severity, description)
+VALUES ('sl_lane2_curve', 'lane_2', 40.0, 60.0, 6.94, 1, '25 km/h curve advisory');
+```
+
+---
 
 #### `traffic_lights`
 
@@ -752,4 +830,14 @@ VALUES
 ('bp_start', 'lane_2', 'a', 'start'),
 ('bp_end',   'lane_1', 'b', 'finish'),
 ('bp_end',   'lane_2', 'b', 'finish');
+```
+
+### Optional: Speed limits
+
+```sql
+-- 50 km/h on both lanes for the full length
+INSERT INTO speed_limits (speed_limit_id, lane_id, s_start, s_end, max_speed, description)
+VALUES
+('sl_lane1', 'lane_1', 0.0, 100.0, 13.89, '50 km/h zone'),
+('sl_lane2', 'lane_2', 0.0, 100.0, 13.89, '50 km/h zone');
 ```

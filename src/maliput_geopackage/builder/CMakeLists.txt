@@ -5,6 +5,8 @@
 add_library(builder
   builder_configuration.cc
   road_network_builder.cc
+  road_rulebook_builder.cc
+  rule_registry_builder.cc
 )
 
 add_library(maliput_geopackage::builder ALIAS builder)
@@ -25,6 +27,7 @@ target_include_directories(builder
 target_link_libraries(builder
   PUBLIC
     maliput::api
+    maliput::base
     maliput::common
     maliput_sparse::loader
   PRIVATE

@@ -109,6 +109,9 @@ class TempGeoPackage {
         "left_boundary_inverted INTEGER, right_boundary_id TEXT, right_boundary_inverted INTEGER)");
     ExecuteSql("CREATE TABLE branch_point_lanes (branch_point_id TEXT, lane_id TEXT, side TEXT, lane_end TEXT)");
     ExecuteSql("CREATE TABLE view_adjacent_lanes (lane_id TEXT, adjacent_lane_id TEXT, side TEXT)");
+    ExecuteSql(
+        "CREATE TABLE speed_limits (speed_limit_id TEXT, lane_id TEXT, s_start REAL, s_end REAL, max_speed REAL, "
+        "min_speed REAL DEFAULT 0.0, description TEXT, severity INTEGER DEFAULT 0)");
   }
 
   std::string filename_;
@@ -302,6 +305,58 @@ TEST(GeoPackageManagerTest, GeoReferenceInfoIsReturned) {
 
   GeoPackageManager dut{temp.GetPath()};
   EXPECT_EQ("EPSG:1234", dut.GetGeoReferenceInfo());
+}
+
+// -- Speed limit tests ---------------------------------------------------------
+
+TEST(GeoPackageManagerTest, SpeedLimitsAreExposedViaGetSpeedLimits) {
+  TempGeoPackage temp;
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main')");
+  temp.ExecuteSql("INSERT INTO segments (segment_id, junction_id, name) VALUES ('seg1', 'j1', 'seg')");
+  temp.InsertLaneBoundary("b_left", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.InsertLaneBoundary("b_right", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.ExecuteSql(
+      "INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
+      "right_boundary_id, right_boundary_inverted) VALUES ('lane_1', 'seg1', 'driving', 'forward', 'b_left', 0, "
+      "'b_right', 0)");
+  temp.ExecuteSql("INSERT INTO speed_limits VALUES ('sl_1', 'lane_1', 0.0, 100.0, 13.89, 0.0, 'Urban road. [m/s]', 0)");
+  temp.ExecuteSql(
+      "INSERT INTO speed_limits VALUES ('sl_2', 'lane_1', 100.0, 200.0, 8.33, 2.78, 'School zone. [m/s]', 1)");
+
+  GeoPackageManager dut{temp.GetPath()};
+  const auto& speed_limits = dut.GetSpeedLimits();
+  auto it = speed_limits.find("lane_1");
+  ASSERT_NE(speed_limits.end(), it);
+  ASSERT_EQ(2u, it->second.size());
+
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].s_start);
+  EXPECT_DOUBLE_EQ(100.0, it->second[0].s_end);
+  EXPECT_DOUBLE_EQ(0.0, it->second[0].min_speed);
+  EXPECT_DOUBLE_EQ(13.89, it->second[0].max_speed);
+  EXPECT_EQ("Urban road. [m/s]", it->second[0].description);
+  EXPECT_EQ(0, it->second[0].severity);
+
+  EXPECT_DOUBLE_EQ(100.0, it->second[1].s_start);
+  EXPECT_DOUBLE_EQ(200.0, it->second[1].s_end);
+  EXPECT_DOUBLE_EQ(2.78, it->second[1].min_speed);
+  EXPECT_DOUBLE_EQ(8.33, it->second[1].max_speed);
+  EXPECT_EQ("School zone. [m/s]", it->second[1].description);
+  EXPECT_EQ(1, it->second[1].severity);
+}
+
+TEST(GeoPackageManagerTest, NoSpeedLimitsProducesEmptyMap) {
+  TempGeoPackage temp;
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main')");
+  temp.ExecuteSql("INSERT INTO segments (segment_id, junction_id, name) VALUES ('seg1', 'j1', 'seg')");
+  temp.InsertLaneBoundary("b1", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.ExecuteSql(
+      "INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
+      "right_boundary_id, right_boundary_inverted) VALUES ('lane_1', 'seg1', 'driving', 'forward', 'b1', 0, 'b1', 0)");
+
+  GeoPackageManager dut{temp.GetPath()};
+  EXPECT_TRUE(dut.GetSpeedLimits().empty());
 }
 
 }  // namespace

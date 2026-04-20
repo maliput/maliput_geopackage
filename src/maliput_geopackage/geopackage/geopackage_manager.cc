@@ -204,6 +204,10 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
 
 GeoPackageManager::~GeoPackageManager() = default;
 
+const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GeoPackageManager::GetSpeedLimits() const {
+  return parser_.GetSpeedLimits();
+}
+
 const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
 GeoPackageManager::DoGetJunctions() const {
   return junctions_;

@@ -1,0 +1,27 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2026, Woven by Toyota.
+# All rights reserved.
+#
+# YAML rules file for testing YAML-only speed limit loading.
+# To be used with complex_road.gpkg (which has no speed_limits table).
+# Defines speed limit rules for seg1_lane1.
+---
+
+RuleRegistry:
+  Speed-Limit Rule Type:
+    - range: [0., 16.67]
+      description: "Highway. [m/s]"
+      severity: 0
+
+RoadRulebook:
+  - id: "Speed-Limit Rule Type/seg1_lane1_0"
+    type: "Speed-Limit Rule Type"
+    zone:
+      - lane_id: seg1_lane1
+    ranges:
+      - range: [0., 16.67]
+        description: "Highway. [m/s]"
+        severity: 0
+        related_rules: []
+        related_unique_ids: []

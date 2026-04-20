@@ -1,0 +1,29 @@
+# BSD 3-Clause License
+#
+# Copyright (c) 2026, Woven by Toyota.
+# All rights reserved.
+#
+# YAML rules file for testing merging YAML + GeoPackage speed limits.
+# To be used with two_lane_road.gpkg (which already has speed_limits for
+# lane_1 at 13.89 m/s and lane_2 at 8.33 m/s).
+# This file adds an additional speed limit rule from YAML for lane_1.
+---
+
+RuleRegistry:
+  Speed-Limit Rule Type:
+    - range: [0., 5.55]
+      description: "Residential zone. [m/s]"
+      severity: 0
+
+RoadRulebook:
+  - id: "Speed-Limit Rule Type/yaml_lane_1_0"
+    type: "Speed-Limit Rule Type"
+    zone:
+      - lane_id: lane_1
+        s_range: [0, 50]
+    ranges:
+      - range: [0., 5.55]
+        description: "Residential zone. [m/s]"
+        severity: 0
+        related_rules: []
+        related_unique_ids: []

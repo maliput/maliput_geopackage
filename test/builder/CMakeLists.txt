@@ -3,6 +3,20 @@ ament_add_gtest(builder_configuration_test
   ${PROJECT_SOURCE_DIR}/src/maliput_geopackage/builder/builder_configuration.cc
 )
 
+ament_add_gtest(road_network_builder_test
+  road_network_builder_test.cc
+)
+
+target_compile_definitions(road_network_builder_test PRIVATE
+  TEST_RESOURCES_DIR="${PROJECT_SOURCE_DIR}/test/resources"
+)
+
+target_link_libraries(road_network_builder_test
+  maliput_geopackage::builder
+  maliput::api
+  maliput::base
+)
+
 macro(add_dependencies_to_test target)
   if (TARGET ${target})
     target_include_directories(${target}

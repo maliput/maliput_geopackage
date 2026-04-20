@@ -530,6 +530,61 @@ def extract_branch_points(road_geometry):
 
 
 # -----------------------------------------------------------------------------
+# Speed limit extraction
+# -----------------------------------------------------------------------------
+
+SPEED_LIMIT_RULE_TYPE = "Speed-Limit Rule Type"
+
+
+def extract_speed_limits(road_network):
+    """Extract speed limit rules from the road network's rulebook.
+
+    Queries all RangeValueRules with type "Speed-Limit Rule Type" and returns
+    one row per (lane, range) combination.
+
+    Args:
+        road_network: A maliput RoadNetwork object.
+
+    Returns:
+        list of (speed_limit_id, lane_id, s_start, s_end, max_speed, min_speed,
+                 description, severity) tuples.
+    """
+    rulebook = road_network.rulebook()
+    all_rules = rulebook.Rules()
+    rows = []
+    sl_counter = 0
+
+    for rule_id_str, rule in all_rules.range_value_rules.items():
+        if rule.type_id().string() != SPEED_LIMIT_RULE_TYPE:
+            continue
+
+        zone = rule.zone()
+        ranges = rule.states()
+
+        for lane_s_range in zone.ranges():
+            lane_id = lane_s_range.lane_id().string()
+            s_range = lane_s_range.s_range()
+            s_start = s_range.s0()
+            s_end = s_range.s1()
+
+            for r in ranges:
+                sl_counter += 1
+                speed_limit_id = f"sl_{sl_counter}"
+                rows.append((
+                    speed_limit_id,
+                    lane_id,
+                    s_start,
+                    s_end,
+                    r.max,
+                    r.min,
+                    r.description,
+                    r.severity,
+                ))
+
+    return rows
+
+
+# -----------------------------------------------------------------------------
 # Main migration logic
 # -----------------------------------------------------------------------------
 
@@ -625,9 +680,12 @@ def main():
 
     branch_point_rows = extract_branch_points(rg)
 
+    speed_limit_rows = extract_speed_limits(road_network)
+
     print(f"  Lanes:         {total_lane_count}")
     print(f"  Boundaries:    {len(all_boundaries)}")
     print(f"  BP entries:    {len(branch_point_rows)}")
+    print(f"  Speed limits:  {len(speed_limit_rows)}")
 
     # ---- 3. Write the GeoPackage ----
     template_gpkg = Path(args.template).resolve()
@@ -701,6 +759,18 @@ def main():
             """,
             branch_point_rows,
         )
+
+        # -- Speed limits --
+        if speed_limit_rows:
+            db.executemany(
+                """
+                INSERT INTO speed_limits
+                    (speed_limit_id, lane_id, s_start, s_end, max_speed, min_speed,
+                     description, severity)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                speed_limit_rows,
+            )
 
         db.commit()
         print(f"\nCreated GeoPackage: {output_gpkg.resolve()}")

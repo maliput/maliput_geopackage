@@ -224,6 +224,30 @@ CREATE TABLE lane_marking_lines (
 -- TRAFFIC CONTROL (NON-SPATIAL)
 -- ============================================================================
 
+-- ---------------------------------------------------------------------------
+-- Speed limits
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE speed_limits (
+    speed_limit_id TEXT UNIQUE NOT NULL,
+    lane_id TEXT NOT NULL,
+    s_start REAL NOT NULL,
+    s_end REAL NOT NULL,
+    max_speed REAL NOT NULL,
+    min_speed REAL DEFAULT 0.0,
+    description TEXT,
+    severity INTEGER DEFAULT 0,
+    FOREIGN KEY (lane_id) REFERENCES lanes(lane_id),
+    CHECK (s_start >= 0 AND s_end >= s_start),
+    CHECK (max_speed >= 0),
+    CHECK (min_speed >= 0 AND min_speed <= max_speed),
+    CHECK (severity >= 0)
+);
+
+-- ---------------------------------------------------------------------------
+-- Traffic lights
+-- ---------------------------------------------------------------------------
+
 CREATE TABLE traffic_lights (
     traffic_light_id TEXT UNIQUE NOT NULL,
     inertial_x REAL NOT NULL,
