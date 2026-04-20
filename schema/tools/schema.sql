@@ -97,7 +97,7 @@ CREATE TABLE maliput_metadata (
 
 INSERT INTO maliput_metadata VALUES
 ('schema_name', 'maliput_geopackage'),
-('schema_version', '1.0.0'),
+('schema_version', '1.1.0'),
 ('geometry_encoding', 'GeoPackageBinary'),
 ('boundary_orientation', 'true means geometry direction is inverted');
 
