@@ -2,6 +2,12 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.0 (2026-04-20)
+-----------
+* Adding speed limit support (`#54 <https://github.com/maliput/maliput_geopackage/issues/54>`_)
+* Curvature-based sampling (`#52 <https://github.com/maliput/maliput_geopackage/issues/52>`_)
+* Contributors: Juan Carosella
+
 0.2.0 (2026-03-26)
 ------------------
 * Update bazel dependencies. (`#50 <https://github.com/maliput/maliput_geopackage/issues/50>`_)
