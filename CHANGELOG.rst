@@ -2,8 +2,13 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.3.1 (2026-04-20)
+------------------
+* Bumping schema version after speed limit addition (`#56 <https://github.com/maliput/maliput_geopackage/issues/56>`_)
+* Contributors: Juan Carosella
+
 0.3.0 (2026-04-20)
------------
+------------------
 * Adding speed limit support (`#54 <https://github.com/maliput/maliput_geopackage/issues/54>`_)
 * Curvature-based sampling (`#52 <https://github.com/maliput/maliput_geopackage/issues/52>`_)
 * Contributors: Juan Carosella
