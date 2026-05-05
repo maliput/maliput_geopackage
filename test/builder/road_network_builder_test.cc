@@ -34,11 +34,14 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include <maliput/api/junction.h>
+#include <maliput/api/lane.h>
 #include <maliput/api/road_network.h>
 #include <maliput/api/rules/range_value_rule.h>
 #include <maliput/api/rules/road_rulebook.h>
 #include <maliput/api/rules/rule.h>
 #include <maliput/api/rules/speed_limit_rule.h>
+#include <maliput/api/segment.h>
 #include <maliput/base/rule_registry.h>
 
 namespace maliput_geopackage {
@@ -61,6 +64,79 @@ TEST_F(RoadNetworkBuilderTest, BuildsRoadNetwork) {
   ASSERT_NE(nullptr, road_network->road_geometry());
   ASSERT_NE(nullptr, road_network->rulebook());
   ASSERT_NE(nullptr, road_network->rule_registry());
+}
+
+TEST_F(RoadNetworkBuilderTest, TwoLaneRoadPopulatesSegmentBoundaries) {
+  const std::map<std::string, std::string> config{{"gpkg_file", kGpkgFile}};
+  RoadNetworkBuilder builder(config);
+  auto road_network = builder();
+
+  ASSERT_NE(nullptr, road_network);
+  const maliput::api::RoadGeometry* road_geometry = road_network->road_geometry();
+  ASSERT_NE(nullptr, road_geometry);
+
+  const auto* segment = road_geometry->ById().GetSegment(maliput::api::SegmentId("seg1"));
+  ASSERT_NE(nullptr, segment);
+  ASSERT_EQ(2, segment->num_lanes());
+  ASSERT_EQ(3, segment->num_boundaries());
+
+  const maliput::api::Lane* lane_0 = segment->lane(0);
+  const maliput::api::Lane* lane_1 = segment->lane(1);
+  ASSERT_NE(nullptr, lane_0);
+  ASSERT_NE(nullptr, lane_1);
+
+  const maliput::api::LaneBoundary* boundary_0 = segment->boundary(0);
+  const maliput::api::LaneBoundary* boundary_1 = segment->boundary(1);
+  const maliput::api::LaneBoundary* boundary_2 = segment->boundary(2);
+  ASSERT_NE(nullptr, boundary_0);
+  ASSERT_NE(nullptr, boundary_1);
+  ASSERT_NE(nullptr, boundary_2);
+
+  EXPECT_EQ(maliput::api::LaneBoundary::Id("b_right_outer"), boundary_0->id());
+  EXPECT_EQ(maliput::api::LaneBoundary::Id("b_center"), boundary_1->id());
+  EXPECT_EQ(maliput::api::LaneBoundary::Id("b_left_outer"), boundary_2->id());
+
+  EXPECT_EQ(lane_0, boundary_0->lane_to_left());
+  EXPECT_EQ(nullptr, boundary_0->lane_to_right());
+  EXPECT_EQ(lane_1, boundary_1->lane_to_left());
+  EXPECT_EQ(lane_0, boundary_1->lane_to_right());
+  EXPECT_EQ(nullptr, boundary_2->lane_to_left());
+  EXPECT_EQ(lane_1, boundary_2->lane_to_right());
+
+  const maliput::api::LaneBoundary* by_id_boundary =
+      road_geometry->ById().GetLaneBoundary(maliput::api::LaneBoundary::Id("b_center"));
+  ASSERT_NE(nullptr, by_id_boundary);
+  EXPECT_EQ(boundary_1, by_id_boundary);
+}
+
+TEST_F(RoadNetworkBuilderTest, TShapeRoadBoundaryCountMatchesLaneCount) {
+  const std::string kTShapeGpkgFile{std::string(TEST_RESOURCES_DIR) + "/t_shape_road.gpkg"};
+  const std::map<std::string, std::string> config{{"gpkg_file", kTShapeGpkgFile}};
+  RoadNetworkBuilder builder(config);
+  auto road_network = builder();
+
+  ASSERT_NE(nullptr, road_network);
+  const maliput::api::RoadGeometry* road_geometry = road_network->road_geometry();
+  ASSERT_NE(nullptr, road_geometry);
+
+  for (int junction_index = 0; junction_index < road_geometry->num_junctions(); ++junction_index) {
+    const maliput::api::Junction* junction = road_geometry->junction(junction_index);
+    ASSERT_NE(nullptr, junction);
+    for (int segment_index = 0; segment_index < junction->num_segments(); ++segment_index) {
+      const maliput::api::Segment* segment = junction->segment(segment_index);
+      ASSERT_NE(nullptr, segment);
+      ASSERT_EQ(segment->num_lanes() + 1, segment->num_boundaries());
+      for (int boundary_index = 0; boundary_index < segment->num_boundaries(); ++boundary_index) {
+        const maliput::api::LaneBoundary* boundary = segment->boundary(boundary_index);
+        ASSERT_NE(nullptr, boundary);
+        const maliput::api::Lane* expected_right = boundary_index > 0 ? segment->lane(boundary_index - 1) : nullptr;
+        const maliput::api::Lane* expected_left =
+            boundary_index < segment->num_lanes() ? segment->lane(boundary_index) : nullptr;
+        EXPECT_EQ(expected_right, boundary->lane_to_right());
+        EXPECT_EQ(expected_left, boundary->lane_to_left());
+      }
+    }
+  }
 }
 
 TEST_F(RoadNetworkBuilderTest, SpeedLimitRulesArePopulated) {

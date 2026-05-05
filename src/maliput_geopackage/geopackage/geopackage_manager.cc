@@ -93,7 +93,15 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
     }
 
     // Create Lane (empty pred/succ for now)
-    lanes.emplace(lane_id, Lane{lane_id, left_boundary, right_boundary, left_lane_id, right_lane_id, {}, {}});
+    lanes.emplace(lane_id, Lane{lane_id,
+                                left_boundary,
+                                right_boundary,
+                                left_lane_id,
+                                right_lane_id,
+                                gpkg_lane.left_boundary_id,
+                                gpkg_lane.right_boundary_id,
+                                {},
+                                {}});
   }
 
   // Topology (Branch Points)
