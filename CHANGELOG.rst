@@ -2,6 +2,13 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.4.0 (2026-05-06)
+------------------
+* Using new lane type API (`#61 <https://github.com/maliput/maliput_geopackage/issues/61>`_)
+* Using new lane boundary API (`#59 <https://github.com/maliput/maliput_geopackage/issues/59>`_)
+* Fixing types in xodr to gpkg converter (`#60 <https://github.com/maliput/maliput_geopackage/issues/60>`_)
+* Contributors: Juan Carosella
+
 0.3.1 (2026-04-20)
 ------------------
 * Bumping schema version after speed limit addition (`#56 <https://github.com/maliput/maliput_geopackage/issues/56>`_)
