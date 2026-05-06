@@ -48,6 +48,36 @@ using maliput_sparse::parser::Lane;
 using maliput_sparse::parser::LaneEnd;
 using maliput_sparse::parser::Segment;
 
+/// @brief Convert GeoPackage lane_type string to maliput::api::LaneType enum.
+/// @param lane_type_string The string value from the GeoPackage database (e.g., "driving", "shoulder").
+/// @return The corresponding maliput::api::LaneType, or std::nullopt if the string is unknown.
+static std::optional<maliput::api::LaneType> StringToLaneType(const std::string& lane_type_string) {
+  if (lane_type_string == "driving") {
+    return maliput::api::LaneType::kDriving;
+  } else if (lane_type_string == "shoulder") {
+    return maliput::api::LaneType::kShoulder;
+  } else if (lane_type_string == "parking") {
+    return maliput::api::LaneType::kParking;
+  } else if (lane_type_string == "biking") {
+    return maliput::api::LaneType::kBiking;
+  } else if (lane_type_string == "walking") {
+    return maliput::api::LaneType::kWalking;
+  } else if (lane_type_string == "bus") {
+    return maliput::api::LaneType::kBus;
+  } else if (lane_type_string == "taxi") {
+    return maliput::api::LaneType::kTaxi;
+  } else if (lane_type_string == "hov") {
+    return maliput::api::LaneType::kHov;
+  } else if (lane_type_string == "turn") {
+    return maliput::api::LaneType::kTurn;
+  } else if (lane_type_string == "emergency") {
+    return maliput::api::LaneType::kEmergency;
+  }
+  // Unknown or unrecognized lane type; default to nullopt
+  maliput::log()->warn("Unknown lane_type: '", lane_type_string, "'; will default to kDriving if used.");
+  return std::nullopt;
+}
+
 GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser_(gpkg_file_path) {
   maliput::log()->trace("Constructing GeoPackageManager with file: ", gpkg_file_path);
   const auto& gpkg_junctions = parser_.GetJunctions();
@@ -100,6 +130,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
                                 right_lane_id,
                                 gpkg_lane.left_boundary_id,
                                 gpkg_lane.right_boundary_id,
+                                StringToLaneType(gpkg_lane.lane_type),
                                 {},
                                 {}});
   }
