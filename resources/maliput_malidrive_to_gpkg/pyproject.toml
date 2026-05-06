@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Convert maliput_malidrive (OpenDRIVE) road networks to GeoPackage format."
 requires-python = ">=3.10"
 dependencies = [
-    "maliput",
-    "maliput_malidrive",
+    "maliput>=1.15.0",
+    "maliput_malidrive>=0.21.0",
 ]
 
 [build-system]
