@@ -128,9 +128,9 @@ def parse_args():
     )
     parser.add_argument(
         "--omit-nondrivable-lanes",
-        action="store_true",
-        default=True,
-        help="Omit non-drivable lanes (sidewalks, shoulders, etc.).",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Omit non-drivable lanes (sidewalks, shoulders, etc.). Default: include all lanes.",
     )
     parser.add_argument(
         "--template",
@@ -381,16 +381,42 @@ def lane_type_to_gpkg(lane):
     """
     lane_type_name = str(lane.type())
 
-    if lane_type_name.endswith("kDriving"):
-        return "driving"
-    if lane_type_name.endswith("kShoulder"):
-        return "shoulder"
-    if lane_type_name.endswith("kWalking"):
-        return "walking"
-    if lane_type_name.endswith("kBiking"):
-        return "biking"
-    if lane_type_name.endswith("kParking"):
-        return "parking"
+    _LANE_TYPE_MAP = {
+        "kUnknown": "unknown",
+        # Main Drivable Lanes
+        "kDriving": "driving",
+        "kTurn": "turn",
+        "kHov": "hov",
+        "kBus": "bus",
+        "kTaxi": "taxi",
+        "kEmergency": "emergency",
+        # Non-Drivable / Special Use
+        "kShoulder": "shoulder",
+        "kBiking": "biking",
+        "kWalking": "walking",
+        "kParking": "parking",
+        "kStop": "stop",
+        # Infrastructure / Boundaries
+        "kBorder": "border",
+        "kCurb": "curb",
+        "kMedian": "median",
+        "kRestricted": "restricted",
+        "kConstruction": "construction",
+        "kRail": "rail",
+        # Highway / Ramp Semantics
+        "kEntry": "entry",
+        "kExit": "exit",
+        "kOnRamp": "on_ramp",
+        "kOffRamp": "off_ramp",
+        "kConnectingRamp": "connecting_ramp",
+        "kSlipLane": "slip_lane",
+        # Abstract / Logical
+        "kVirtual": "virtual",
+    }
+
+    for key, value in _LANE_TYPE_MAP.items():
+        if lane_type_name.endswith(key):
+            return value
 
     return "other"
 
