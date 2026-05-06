@@ -367,6 +367,25 @@ TEST_F(RoadNetworkBuilderTest, SpeedLimitsFromBothSources) {
   EXPECT_EQ(2, lane_1_range_rules);
 }
 
+TEST_F(RoadNetworkBuilderTest, TwoLaneRoadLaneTypeIsAccessible) {
+  const std::string kTwoLaneGpkgFile{std::string(TEST_RESOURCES_DIR) + "/two_lane_road.gpkg"};
+  const std::map<std::string, std::string> config{{"gpkg_file", kTwoLaneGpkgFile}};
+  RoadNetworkBuilder builder(config);
+  auto road_network = builder();
+
+  ASSERT_NE(nullptr, road_network);
+  const maliput::api::RoadGeometry* road_geometry = road_network->road_geometry();
+  ASSERT_NE(nullptr, road_geometry);
+
+  const maliput::api::Lane* lane_1 = road_geometry->ById().GetLane(maliput::api::LaneId("lane_1"));
+  const maliput::api::Lane* lane_2 = road_geometry->ById().GetLane(maliput::api::LaneId("lane_2"));
+  ASSERT_NE(nullptr, lane_1);
+  ASSERT_NE(nullptr, lane_2);
+
+  EXPECT_EQ(maliput::api::LaneType::kDriving, lane_1->type());
+  EXPECT_EQ(maliput::api::LaneType::kDriving, lane_2->type());
+}
+
 }  // namespace
 }  // namespace test
 }  // namespace builder
