@@ -51,6 +51,7 @@ import math
 import shutil
 import sqlite3
 import struct
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import maliput
@@ -611,6 +612,192 @@ def extract_speed_limits(road_network):
 
 
 # -----------------------------------------------------------------------------
+# Lane marking extraction (from OpenDRIVE roadMark)
+# -----------------------------------------------------------------------------
+
+def polyline_length(points):
+    """Compute the arc length of a polyline."""
+    if len(points) < 2:
+        return 0.0
+    return sum(euclidean_dist(points[i - 1], points[i]) for i in range(1, len(points)))
+
+
+def normalize_marking_type(type_str):
+    """Map OpenDRIVE roadMark type strings to schema marking_type values."""
+    if type_str is None:
+        return "solid"
+
+    raw = type_str.strip().lower().replace("-", " ").replace("_", " ")
+    raw = " ".join(raw.split())
+    mapping = {
+        "none": "none",
+        "solid": "solid",
+        "broken": "broken",
+        "dashed": "dashed",
+        "solid solid": "solid_solid",
+        "broken broken": "double_broken",
+        "solid broken": "solid_broken",
+        "broken solid": "broken_solid",
+        "double solid": "double_solid",
+        "double broken": "double_broken",
+    }
+    return mapping.get(raw, raw.replace(" ", "_"))
+
+
+def normalize_lane_change_rule(rule_str):
+    """Map OpenDRIVE laneChange values to schema lane_change_rule values."""
+    if rule_str is None:
+        return "prohibited"
+
+    mapping = {
+        "none": "prohibited",
+        "both": "allowed",
+        "increase": "left_only",
+        "decrease": "right_only",
+    }
+    return mapping.get(rule_str.strip().lower(), "prohibited")
+
+
+def parse_float_optional(value):
+    """Parse an optional float XML attribute."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def parse_open_drive_lane_markings(xodr_path, lane_boundary_lookup, boundary_lengths):
+    """Extract lane markings from OpenDRIVE and map them to GeoPackage boundaries.
+
+    Mapping strategy:
+    - For non-center lanes, use the lane's outer boundary:
+      - left lanes (id > 0)  -> left boundary
+      - right lanes (id < 0) -> right boundary
+    - For center lane (id == 0), use the boundary between lane +1 and lane -1.
+    """
+    tree = ET.parse(xodr_path)
+    root = tree.getroot()
+
+    marking_rows = []
+    line_rows = []
+    marking_counter = 0
+
+    for road in root.findall("road"):
+        road_id = road.get("id")
+        if road_id is None:
+            continue
+
+        road_length = parse_float_optional(road.get("length")) or 0.0
+        lane_sections = road.findall("./lanes/laneSection")
+
+        for section_index, lane_section in enumerate(lane_sections):
+            section_s0 = parse_float_optional(lane_section.get("s")) or 0.0
+            if section_index + 1 < len(lane_sections):
+                next_s0 = parse_float_optional(lane_sections[section_index + 1].get("s")) or road_length
+            else:
+                next_s0 = road_length
+            section_length = max(0.0, next_s0 - section_s0)
+
+            lane_elements = []
+            for side_tag in ("left", "center", "right"):
+                side_node = lane_section.find(side_tag)
+                if side_node is None:
+                    continue
+                lane_elements.extend(side_node.findall("lane"))
+
+            for lane_elem in lane_elements:
+                lane_id_value = parse_float_optional(lane_elem.get("id"))
+                if lane_id_value is None:
+                    continue
+                lane_id = int(lane_id_value)
+
+                if lane_id > 0:
+                    lane_key = f"{road_id}_{section_index}_{lane_id}"
+                    lane_meta = lane_boundary_lookup.get(lane_key)
+                    if lane_meta is None:
+                        continue
+                    boundary_id = lane_meta["left_boundary_id"]
+                    boundary_inverted = lane_meta["left_inverted"]
+                elif lane_id < 0:
+                    lane_key = f"{road_id}_{section_index}_{lane_id}"
+                    lane_meta = lane_boundary_lookup.get(lane_key)
+                    if lane_meta is None:
+                        continue
+                    boundary_id = lane_meta["right_boundary_id"]
+                    boundary_inverted = lane_meta["right_inverted"]
+                else:
+                    left_lane_key = f"{road_id}_{section_index}_1"
+                    right_lane_key = f"{road_id}_{section_index}_-1"
+                    if left_lane_key in lane_boundary_lookup:
+                        lane_meta = lane_boundary_lookup[left_lane_key]
+                        boundary_id = lane_meta["right_boundary_id"]
+                        boundary_inverted = lane_meta["right_inverted"]
+                    elif right_lane_key in lane_boundary_lookup:
+                        lane_meta = lane_boundary_lookup[right_lane_key]
+                        boundary_id = lane_meta["left_boundary_id"]
+                        boundary_inverted = lane_meta["left_inverted"]
+                    else:
+                        continue
+
+                road_marks = lane_elem.findall("roadMark")
+                for rm_index, road_mark in enumerate(road_marks):
+                    start_s = parse_float_optional(road_mark.get("sOffset")) or 0.0
+                    if rm_index + 1 < len(road_marks):
+                        end_s = parse_float_optional(road_marks[rm_index + 1].get("sOffset"))
+                    else:
+                        end_s = section_length
+
+                    if end_s is None:
+                        end_s = section_length
+
+                    start_s = max(0.0, min(start_s, section_length))
+                    end_s = max(start_s, min(end_s, section_length))
+
+                    boundary_length = boundary_lengths.get(boundary_id, end_s)
+                    if boundary_inverted:
+                        transformed_start = max(0.0, boundary_length - end_s)
+                        transformed_end = max(transformed_start, boundary_length - start_s)
+                        start_s = transformed_start
+                        end_s = transformed_end
+
+                    marking_counter += 1
+                    marking_id = f"mk_{marking_counter}"
+
+                    marking_rows.append((
+                        marking_id,
+                        boundary_id,
+                        start_s,
+                        end_s,
+                        normalize_marking_type(road_mark.get("type")),
+                        (road_mark.get("color") or "white").strip().lower(),
+                        (road_mark.get("weight") or "standard").strip().lower(),
+                        parse_float_optional(road_mark.get("width")),
+                        parse_float_optional(road_mark.get("height")),
+                        road_mark.get("material"),
+                        normalize_lane_change_rule(road_mark.get("laneChange")),
+                    ))
+
+                    line_index = 0
+                    for type_node in road_mark.findall("type"):
+                        for line_node in type_node.findall("line"):
+                            line_rows.append((
+                                f"{marking_id}_line_{line_index}",
+                                marking_id,
+                                line_index,
+                                parse_float_optional(line_node.get("length")),
+                                parse_float_optional(line_node.get("space")),
+                                parse_float_optional(line_node.get("width")),
+                                parse_float_optional(line_node.get("tOffset")),
+                                (line_node.get("color") or road_mark.get("color") or "white").strip().lower(),
+                            ))
+                            line_index += 1
+
+    return marking_rows, line_rows
+
+
+# -----------------------------------------------------------------------------
 # Main migration logic
 # -----------------------------------------------------------------------------
 
@@ -708,10 +895,28 @@ def main():
 
     speed_limit_rows = extract_speed_limits(road_network)
 
+    lane_boundary_lookup = {}
+    for lane_row in all_lanes:
+        lane_boundary_lookup[lane_row[0]] = {
+            "left_boundary_id": lane_row[4],
+            "left_inverted": lane_row[5],
+            "right_boundary_id": lane_row[6],
+            "right_inverted": lane_row[7],
+        }
+
+    boundary_lengths = {boundary_id: polyline_length(points) for boundary_id, points in all_boundaries.items()}
+    lane_marking_rows, lane_marking_line_rows = parse_open_drive_lane_markings(
+        xodr_path,
+        lane_boundary_lookup,
+        boundary_lengths,
+    )
+
     print(f"  Lanes:         {total_lane_count}")
     print(f"  Boundaries:    {len(all_boundaries)}")
     print(f"  BP entries:    {len(branch_point_rows)}")
     print(f"  Speed limits:  {len(speed_limit_rows)}")
+    print(f"  Lane markings: {len(lane_marking_rows)}")
+    print(f"  Marking lines: {len(lane_marking_line_rows)}")
 
     # ---- 3. Write the GeoPackage ----
     template_gpkg = Path(args.template).resolve()
@@ -796,6 +1001,29 @@ def main():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 speed_limit_rows,
+            )
+
+        # -- Lane markings --
+        if lane_marking_rows:
+            db.executemany(
+                """
+                INSERT INTO lane_markings
+                    (marking_id, boundary_id, s_start, s_end, marking_type, color,
+                     weight, width, height, material, lane_change_rule)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                lane_marking_rows,
+            )
+
+        # -- Lane marking lines --
+        if lane_marking_line_rows:
+            db.executemany(
+                """
+                INSERT INTO lane_marking_lines
+                    (line_id, marking_id, line_index, length, space, width, r_offset, color)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                lane_marking_line_rows,
             )
 
         db.commit()
