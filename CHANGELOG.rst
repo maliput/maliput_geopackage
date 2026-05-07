@@ -2,6 +2,11 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.5.0 (2026-05-07)
+------------------
+* Adding lane marking support (`#63 <https://github.com/maliput/maliput_geopackage/issues/63>`_)
+* Contributors: Juan Carosella
+
 0.4.0 (2026-05-06)
 ------------------
 * Using new lane type API (`#61 <https://github.com/maliput/maliput_geopackage/issues/61>`_)
