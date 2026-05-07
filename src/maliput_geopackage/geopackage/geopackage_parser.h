@@ -29,6 +29,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -95,6 +96,30 @@ struct GPKGSpeedLimit {
   int severity;
 };
 
+/// Lane marking line details for complex markings.
+struct GPKGLaneMarkingLine {
+  double length;      // Length of visible part of dashed line (meters)
+  double space;       // Gap between repeats (meters)
+  double width;       // Width of the line (meters)
+  double r_offset;    // Lateral offset from boundary (meters, positive = rightward)
+  std::string color;  // Color: "white", "yellow", "red", "blue"
+};
+
+/// Lane marking information associated with lane_boundaries.
+struct GPKGLaneMarking {
+  std::string boundary_id;                 // Reference to the boundary this marking is on
+  double s_start;                          // Start position along boundary (meters)
+  double s_end;                            // End position along boundary (meters)
+  std::string marking_type;                // Type: "solid", "dashed", "double_solid", etc.
+  std::string color;                       // Color: "white", "yellow", "red", "blue"
+  std::string weight;                      // Visual weight: "standard", "bold"
+  std::optional<double> width;             // Optional width (meters)
+  std::optional<double> height;            // Optional height (meters, for raised markings)
+  std::string material;                    // Material description
+  std::string lane_change_rule;            // Rule: "prohibited", "left_only", "right_only", "allowed"
+  std::vector<GPKGLaneMarkingLine> lines;  // Detailed line components
+};
+
 /// GeoPackageParser is responsible for loading a GeoPackage file, parsing it and filling temporary data structures to
 /// hold the geopackage information.
 class GeoPackageParser {
@@ -123,6 +148,7 @@ class GeoPackageParser {
     return branch_point_lanes_;
   }
   const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GetSpeedLimits() const { return speed_limits_; }
+  const std::unordered_map<std::string, std::vector<GPKGLaneMarking>>& GetMarkings() const { return lane_markings_; }
 
  private:
   // Opens the GeoPackage database.
@@ -168,6 +194,13 @@ class GeoPackageParser {
   // Parses speed limits from the GeoPackage. Returns a map keyed by lane_id.
   std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> ParseSpeedLimits(const SqliteDatabase& db) const;
 
+  // Parses lane marking lines from the GeoPackage. Returns a map keyed by marking_id.
+  std::unordered_map<std::string, std::vector<GPKGLaneMarkingLine>> ParseLaneMarkingLines(
+      const SqliteDatabase& db) const;
+
+  // Parses lane markings from the GeoPackage. Returns a map keyed by boundary_id.
+  std::unordered_map<std::string, std::vector<GPKGLaneMarking>> ParseLaneMarkings(const SqliteDatabase& db) const;
+
   // Data structures to hold the parsed data from the GeoPackage file
   // Metadata key-value pairs from the maliput_metadata table.
   std::unordered_map<std::string, std::string> maliput_metadata_;
@@ -186,6 +219,8 @@ class GeoPackageParser {
   std::unordered_map<std::string, std::vector<GPKGAdjacentLane>> adjacent_lanes_;
   // Speed limits parsed from the speed_limits table. Keyed by lane_id with multiple speed limits per lane.
   std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> speed_limits_;
+  // Lane markings parsed from the lane_markings table. Keyed by boundary_id with multiple markings per boundary.
+  std::unordered_map<std::string, std::vector<GPKGLaneMarking>> lane_markings_;
 };
 
 }  // namespace geopackage

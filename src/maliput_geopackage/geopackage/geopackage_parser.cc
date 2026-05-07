@@ -57,6 +57,10 @@ GeoPackageParser::GeoPackageParser(const std::string& gpkg_file_path) {
   adjacent_lanes_ = ParseAdjacentLanes(db);
   maliput::log()->trace("Parsing GeoPackage speed limits...");
   speed_limits_ = ParseSpeedLimits(db);
+  maliput::log()->trace("Parsing GeoPackage lane marking lines...");
+  auto lane_marking_lines = ParseLaneMarkingLines(db);
+  maliput::log()->trace("Parsing GeoPackage lane markings...");
+  lane_markings_ = ParseLaneMarkings(db);
 }
 
 GeoPackageParser::~GeoPackageParser() = default;
@@ -268,6 +272,89 @@ std::unordered_map<std::string, std::vector<GPKGSpeedLimit>> GeoPackageParser::P
                                      stmt.GetColumnDouble(5), stmt.GetColumnText(6), stmt.GetColumnInt(7)});
   }
   return speed_limits;
+}
+
+std::unordered_map<std::string, std::vector<GPKGLaneMarkingLine>> GeoPackageParser::ParseLaneMarkingLines(
+    const SqliteDatabase& db) const {
+  // The lane_marking_lines table is optional — return empty if absent.
+  SqliteStatement check_stmt(db.get(),
+                             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='lane_marking_lines'");
+  if (!check_stmt.Step() || check_stmt.GetColumnInt(0) == 0) {
+    return {};
+  }
+
+  SqliteStatement stmt(db.get(),
+                       "SELECT marking_id, length, space, width, r_offset, color FROM lane_marking_lines "
+                       "ORDER BY marking_id, line_index ASC");
+  std::unordered_map<std::string, std::vector<GPKGLaneMarkingLine>> result;
+  while (stmt.Step()) {
+    GPKGLaneMarkingLine line;
+    line.length = stmt.GetColumnDouble(1);
+    line.space = stmt.GetColumnDouble(2);
+    line.width = stmt.GetColumnDouble(3);
+    line.r_offset = stmt.GetColumnDouble(4);
+    line.color = stmt.GetColumnText(5);
+
+    result[stmt.GetColumnText(0)].push_back(line);
+  }
+  return result;
+}
+
+std::unordered_map<std::string, std::vector<GPKGLaneMarking>> GeoPackageParser::ParseLaneMarkings(
+    const SqliteDatabase& db) const {
+  // The lane_markings table is optional — return empty if absent.
+  SqliteStatement check_stmt(db.get(),
+                             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='lane_markings'");
+  if (!check_stmt.Step() || check_stmt.GetColumnInt(0) == 0) {
+    return {};
+  }
+
+  auto lane_marking_lines = ParseLaneMarkingLines(db);
+
+  SqliteStatement stmt(db.get(),
+                       "SELECT marking_id, boundary_id, s_start, s_end, marking_type, color, weight, width, height, "
+                       "material, lane_change_rule FROM lane_markings ORDER BY boundary_id, s_start ASC");
+  std::unordered_map<std::string, std::vector<GPKGLaneMarking>> result;
+  while (stmt.Step()) {
+    GPKGLaneMarking marking;
+    marking.boundary_id = stmt.GetColumnText(1);
+    marking.s_start = stmt.GetColumnDouble(2);
+    marking.s_end = stmt.GetColumnDouble(3);
+    marking.marking_type = stmt.GetColumnText(4);
+    marking.color = stmt.GetColumnText(5);
+    marking.weight = stmt.GetColumnText(6);
+    marking.material = stmt.GetColumnText(9);
+    marking.lane_change_rule = stmt.GetColumnText(10);
+
+    // Optional fields: width (column 7) and height (column 8)
+    // Try to parse as doubles if they're not empty strings
+    std::string width_str = stmt.GetColumnText(7);
+    if (!width_str.empty()) {
+      try {
+        marking.width = std::stod(width_str);
+      } catch (...) {
+        // Silently ignore parse errors for optional fields
+      }
+    }
+    std::string height_str = stmt.GetColumnText(8);
+    if (!height_str.empty()) {
+      try {
+        marking.height = std::stod(height_str);
+      } catch (...) {
+        // Silently ignore parse errors for optional fields
+      }
+    }
+
+    // Attach associated line details
+    const std::string marking_id = stmt.GetColumnText(0);
+    auto lines_it = lane_marking_lines.find(marking_id);
+    if (lines_it != lane_marking_lines.end()) {
+      marking.lines = lines_it->second;
+    }
+
+    result[stmt.GetColumnText(1)].push_back(marking);
+  }
+  return result;
 }
 
 }  // namespace geopackage
