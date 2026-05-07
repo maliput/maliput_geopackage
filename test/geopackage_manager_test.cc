@@ -250,6 +250,42 @@ TEST(GeoPackageManagerTest, TShapeRoadDeduplicatesConnections) {
   }
 }
 
+TEST(GeoPackageManagerTest, LanesCarryBoundaryMarkingsFromLaneMarkingsTable) {
+  TempGeoPackage temp;
+  temp.ExecuteSql("INSERT INTO maliput_metadata (key, value) VALUES ('schema_version', '1.0.0')");
+  temp.ExecuteSql("INSERT INTO junctions (junction_id, name) VALUES ('j1', 'Main')");
+  temp.ExecuteSql("INSERT INTO segments (segment_id, junction_id, name) VALUES ('seg1', 'j1', 'seg')");
+  temp.InsertLaneBoundary("b_left", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.InsertLaneBoundary("b_right", BuildGeometryBlob('G', 'P', 0, 0, 0, 1, 2 | 0x80000000, 2, true));
+  temp.ExecuteSql(
+      "INSERT INTO lanes (lane_id, segment_id, lane_type, direction, left_boundary_id, left_boundary_inverted, "
+      "right_boundary_id, right_boundary_inverted) VALUES ('lane_1', 'seg1', 'driving', 'forward', 'b_left', 0, "
+      "'b_right', 0)");
+  temp.ExecuteSql(
+      "CREATE TABLE lane_markings (marking_id TEXT, boundary_id TEXT, s_start REAL, s_end REAL, marking_type TEXT, "
+      "color TEXT, weight TEXT, width REAL, height REAL, material TEXT, lane_change_rule TEXT)");
+  temp.ExecuteSql(
+      "INSERT INTO lane_markings VALUES ('m1', 'b_left', 0.0, 10.0, 'solid', 'white', 'standard', 0.12, NULL, "
+      "'paint', 'prohibited')");
+
+  GeoPackageManager dut{temp.GetPath()};
+  const auto& marking_map = dut.GetMarkings();
+  ASSERT_EQ(1u, marking_map.size());
+  auto left_boundary_it = marking_map.find("b_left");
+  ASSERT_NE(marking_map.end(), left_boundary_it);
+  ASSERT_EQ(1u, left_boundary_it->second.size());
+
+  const auto& junctions = dut.GetJunctions();
+  ASSERT_EQ(1u, junctions.size());
+  const auto& segment = junctions.at("j1").segments.at("seg1");
+  ASSERT_EQ(1u, segment.lanes.size());
+  const auto& lane = segment.lanes.front();
+  ASSERT_EQ("b_left", lane.left_boundary_id.value());
+  ASSERT_EQ("b_right", lane.right_boundary_id.value());
+  ASSERT_EQ(left_boundary_it->second, lane.left_boundary_markings);
+  EXPECT_TRUE(lane.right_boundary_markings.empty());
+}
+
 TEST(GeoPackageManagerNegativeTest, ConstructorWithNonExistentFile) {
   EXPECT_THROW(GeoPackageManager("non_existent_file.gpkg"), maliput::common::assertion_error);
 }

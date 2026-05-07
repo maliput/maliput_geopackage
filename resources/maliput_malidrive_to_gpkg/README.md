@@ -62,10 +62,11 @@ maliput-malidrive-to-gpkg map.xodr --template /path/to/custom_template.gpkg
 3. Samples left and right lane boundaries adaptively. The sampler probes `lane.GetCurvature(...)` and midpoint geometry, keeping straight sections coarse while refining curved sections until the maximum polyline deviation is below `--max-chord-error` or `--num-samples` is reached.
 4. Detects shared boundaries between laterally-adjacent lanes so each physical boundary is stored only once.
 5. Extracts branch-point connectivity from the road geometry.
-6. Writes everything into a GeoPackage file (copied from `schema/tools/template.gpkg`) with the maliput_geopackage schema tables: `junctions`, `segments`, `lane_boundaries`, `lanes`, and `branch_point_lanes`.
+6. Extracts lane markings from OpenDRIVE `roadMark` definitions and maps them to exported lane boundaries.
+7. Writes everything into a GeoPackage file (copied from `schema/tools/template.gpkg`) with the maliput_geopackage schema tables: `junctions`, `segments`, `lane_boundaries`, `lanes`, `branch_point_lanes`, `speed_limits`, `lane_markings`, and `lane_marking_lines`.
 
 ## Notes
 
 - The GeoPackage template (`template.gpkg`) defaults to `../../schema/tools/template.gpkg` relative to this script. A custom template can be provided via the `--template` flag.
-- Lane type is currently set to `"driving"` for all exported lanes. A future improvement could infer the type from the OpenDRIVE lane type attribute.
+- Lane-marking extraction currently maps non-center lane `roadMark` data to the lane's outer boundary, and center-lane (`id=0`) `roadMark` data to the boundary between lane `+1` and lane `-1` when present.
 - `--num-samples` now acts as an upper bound for the adaptive sampler rather than a fixed number of evenly-spaced points.

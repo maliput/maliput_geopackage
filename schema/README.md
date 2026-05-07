@@ -403,7 +403,7 @@ CREATE TABLE lane_markings (
 | `width`            | REAL | Width of the marking in meters (optional)                                                                                    |
 | `height`           | REAL | Height of the marking in meters (optional, for raised markings)                                                              |
 | `material`         | TEXT | Material description (e.g., `asphalt`, `concrete`, `paint`)                                                                  |
-| `lane_change_rule` | TEXT | Passing/lane change rule: `none` (no passing), `caution` (pass with caution), `allowed` (passing allowed)                    |
+| `lane_change_rule` | TEXT | Passing/lane change rule: `prohibited` (no passing), `left_only` (left only), `right_only` (right only), `allowed` (both)  |
 
 **Marking Types Reference:**
 

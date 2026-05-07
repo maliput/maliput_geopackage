@@ -36,6 +36,7 @@
 #include <maliput/common/maliput_copyable.h>
 #include <maliput_sparse/parser/connection.h>
 #include <maliput_sparse/parser/junction.h>
+#include <maliput_sparse/parser/lane_marking.h>
 #include <maliput_sparse/parser/parser.h>
 
 #include "maliput_geopackage/geopackage/geopackage_parser.h"
@@ -60,6 +61,9 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   /// Returns speed limits parsed from the GeoPackage, keyed by lane id.
   const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GetSpeedLimits() const;
 
+  /// Returns lane markings parsed from the GeoPackage, keyed by boundary_id.
+  const std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>>& GetMarkings() const;
+
  private:
   // Gets the map's junctions.
   const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>& DoGetJunctions()
@@ -78,12 +82,17 @@ class GeoPackageManager : public maliput_sparse::parser::Parser {
   // lane.
   void SortLanes(std::vector<maliput_sparse::parser::Lane>& lanes) const;
 
+  // Builds a map of boundary_id to lane markings for efficient lookup during builder phase.
+  std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>> BuildMarkingMap() const;
+
   // GeopackageParser instance used to parse the GeoPackage file and populate the data structures.
   GeoPackageParser parser_;
 
   // Data structures to hold the parsed data.
   std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction> junctions_;
   std::vector<maliput_sparse::parser::Connection> connections_;
+  // Lane markings map: boundary_id -> vector of BoundaryMarkings
+  std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>> marking_map_;
 };
 
 }  // namespace geopackage

@@ -139,6 +139,39 @@ TEST_F(RoadNetworkBuilderTest, TShapeRoadBoundaryCountMatchesLaneCount) {
   }
 }
 
+TEST_F(RoadNetworkBuilderTest, TShapeRoadBoundaryMarkingsAreAccessible) {
+  const std::string kTShapeGpkgFile{std::string(TEST_RESOURCES_DIR) + "/t_shape_road.gpkg"};
+  const std::map<std::string, std::string> config{{"gpkg_file", kTShapeGpkgFile}};
+  RoadNetworkBuilder builder(config);
+  auto road_network = builder();
+
+  ASSERT_NE(nullptr, road_network);
+  const maliput::api::RoadGeometry* road_geometry = road_network->road_geometry();
+  ASSERT_NE(nullptr, road_geometry);
+
+  bool found_boundary_with_markings = false;
+  for (int junction_index = 0; junction_index < road_geometry->num_junctions(); ++junction_index) {
+    const maliput::api::Junction* junction = road_geometry->junction(junction_index);
+    ASSERT_NE(nullptr, junction);
+    for (int segment_index = 0; segment_index < junction->num_segments(); ++segment_index) {
+      const maliput::api::Segment* segment = junction->segment(segment_index);
+      ASSERT_NE(nullptr, segment);
+      for (int boundary_index = 0; boundary_index < segment->num_boundaries(); ++boundary_index) {
+        const maliput::api::LaneBoundary* boundary = segment->boundary(boundary_index);
+        ASSERT_NE(nullptr, boundary);
+        const auto markings = boundary->GetMarkings();
+        if (!markings.empty()) {
+          found_boundary_with_markings = true;
+          EXPECT_TRUE(boundary->GetMarking(markings.front().s_start).has_value());
+        }
+      }
+    }
+  }
+  if (!found_boundary_with_markings) {
+    GTEST_SKIP() << "Fixture does not contain lane_markings data.";
+  }
+}
+
 TEST_F(RoadNetworkBuilderTest, SpeedLimitRulesArePopulated) {
   const std::map<std::string, std::string> config{{"gpkg_file", kGpkgFile}};
   RoadNetworkBuilder builder(config);

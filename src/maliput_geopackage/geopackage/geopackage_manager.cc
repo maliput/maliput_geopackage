@@ -30,10 +30,14 @@
 #include "maliput_geopackage/geopackage/geopackage_manager.h"
 
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <set>
 #include <stdexcept>
 #include <vector>
+
+#include <maliput/api/lane_marking.h>
+#include <maliput/common/logger.h>
 
 #include "maliput_sparse/geometry/line_string.h"
 #include "maliput_sparse/parser/lane.h"
@@ -78,6 +82,72 @@ static std::optional<maliput::api::LaneType> StringToLaneType(const std::string&
   return std::nullopt;
 }
 
+/// @brief Convert GeoPackage marking_type string to maliput::api::LaneMarkingType enum.
+static maliput::api::LaneMarkingType StringToMarkingType(const std::string& type_str) {
+  static const std::map<std::string, maliput::api::LaneMarkingType> kMapping = {
+      {"solid", maliput::api::LaneMarkingType::kSolid},
+      {"dashed", maliput::api::LaneMarkingType::kBroken},
+      {"double_solid", maliput::api::LaneMarkingType::kSolidSolid},
+      {"broken", maliput::api::LaneMarkingType::kBroken},  // alias for dashed
+      {"double_broken", maliput::api::LaneMarkingType::kBrokenBroken},
+      {"solid_solid", maliput::api::LaneMarkingType::kSolidSolid},
+      {"solid_broken", maliput::api::LaneMarkingType::kSolidBroken},
+      {"broken_solid", maliput::api::LaneMarkingType::kBrokenSolid},
+  };
+  auto it = kMapping.find(type_str);
+  if (it != kMapping.end()) {
+    return it->second;
+  }
+  maliput::log()->warn("Unknown marking_type: '", type_str, "'; defaulting to kSolid");
+  return maliput::api::LaneMarkingType::kSolid;
+}
+
+/// @brief Convert GeoPackage color string to maliput::api::LaneMarkingColor enum.
+static maliput::api::LaneMarkingColor StringToMarkingColor(const std::string& color_str) {
+  static const std::map<std::string, maliput::api::LaneMarkingColor> kMapping{
+      {"white", maliput::api::LaneMarkingColor::kWhite},
+      {"yellow", maliput::api::LaneMarkingColor::kYellow},
+      {"red", maliput::api::LaneMarkingColor::kRed},
+      {"blue", maliput::api::LaneMarkingColor::kBlue},
+  };
+  auto it = kMapping.find(color_str);
+  if (it != kMapping.end()) {
+    return it->second;
+  }
+  maliput::log()->warn("Unknown marking color: '", color_str, "'; defaulting to kWhite");
+  return maliput::api::LaneMarkingColor::kWhite;
+}
+
+/// @brief Convert GeoPackage weight string to maliput::api::LaneMarkingWeight enum.
+static maliput::api::LaneMarkingWeight StringToMarkingWeight(const std::string& weight_str) {
+  static const std::map<std::string, maliput::api::LaneMarkingWeight> kMapping{
+      {"standard", maliput::api::LaneMarkingWeight::kStandard},
+      {"bold", maliput::api::LaneMarkingWeight::kBold},
+  };
+  auto it = kMapping.find(weight_str);
+  if (it != kMapping.end()) {
+    return it->second;
+  }
+  maliput::log()->warn("Unknown marking weight: '", weight_str, "'; defaulting to kStandard");
+  return maliput::api::LaneMarkingWeight::kStandard;
+}
+
+/// @brief Convert GeoPackage lane_change_rule string to maliput::api::LaneChangePermission enum.
+static maliput::api::LaneChangePermission StringToLaneChangePermission(const std::string& rule_str) {
+  static const std::map<std::string, maliput::api::LaneChangePermission> kMapping{
+      {"prohibited", maliput::api::LaneChangePermission::kProhibited},
+      {"left_only", maliput::api::LaneChangePermission::kToLeft},
+      {"right_only", maliput::api::LaneChangePermission::kToRight},
+      {"allowed", maliput::api::LaneChangePermission::kAllowed},
+  };
+  auto it = kMapping.find(rule_str);
+  if (it != kMapping.end()) {
+    return it->second;
+  }
+  maliput::log()->warn("Unknown lane_change_rule: '", rule_str, "'; defaulting to kProhibited");
+  return maliput::api::LaneChangePermission::kProhibited;
+}
+
 GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser_(gpkg_file_path) {
   maliput::log()->trace("Constructing GeoPackageManager with file: ", gpkg_file_path);
   const auto& gpkg_junctions = parser_.GetJunctions();
@@ -86,6 +156,7 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
   const auto& gpkg_boundaries = parser_.GetLaneBoundaries();
   const auto& gpkg_branch_points = parser_.GetBranchPointLanes();
   const auto& gpkg_adjacent_lanes = parser_.GetAdjacentLanes();
+  marking_map_ = BuildMarkingMap();
 
   // Build Lanes (without segment/junction hierarchy yet)
   maliput::log()->trace("Building lanes from parsed GeoPackage data...");
@@ -123,16 +194,23 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
     }
 
     // Create Lane (empty pred/succ for now)
-    lanes.emplace(lane_id, Lane{lane_id,
-                                left_boundary,
-                                right_boundary,
-                                left_lane_id,
-                                right_lane_id,
-                                gpkg_lane.left_boundary_id,
-                                gpkg_lane.right_boundary_id,
-                                StringToLaneType(gpkg_lane.lane_type),
-                                {},
-                                {}});
+    const auto left_markings_it = marking_map_.find(gpkg_lane.left_boundary_id);
+    const auto right_markings_it = marking_map_.find(gpkg_lane.right_boundary_id);
+    lanes.emplace(
+        lane_id, Lane{lane_id,
+                      left_boundary,
+                      right_boundary,
+                      left_lane_id,
+                      right_lane_id,
+                      gpkg_lane.left_boundary_id,
+                      gpkg_lane.right_boundary_id,
+                      StringToLaneType(gpkg_lane.lane_type),
+                      left_markings_it != marking_map_.end() ? left_markings_it->second
+                                                             : std::vector<maliput_sparse::parser::BoundaryMarkings>{},
+                      right_markings_it != marking_map_.end() ? right_markings_it->second
+                                                              : std::vector<maliput_sparse::parser::BoundaryMarkings>{},
+                      {},
+                      {}});
   }
 
   // Topology (Branch Points)
@@ -239,12 +317,19 @@ GeoPackageManager::GeoPackageManager(const std::string& gpkg_file_path) : parser
     }
     connections_.swap(unique_connections);
   }
+
+  maliput::log()->trace("Loaded lane marking map with ", std::to_string(marking_map_.size()), " boundaries.");
 }
 
 GeoPackageManager::~GeoPackageManager() = default;
 
 const std::unordered_map<std::string, std::vector<GPKGSpeedLimit>>& GeoPackageManager::GetSpeedLimits() const {
   return parser_.GetSpeedLimits();
+}
+
+const std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>>&
+GeoPackageManager::GetMarkings() const {
+  return marking_map_;
 }
 
 const std::unordered_map<maliput_sparse::parser::Junction::Id, maliput_sparse::parser::Junction>&
@@ -335,6 +420,41 @@ void GeoPackageManager::SortLanes(std::vector<Lane>& lanes) const {
   }
 
   lanes = std::move(sorted_lanes);
+}
+
+std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>>
+GeoPackageManager::BuildMarkingMap() const {
+  std::unordered_map<std::string, std::vector<maliput_sparse::parser::BoundaryMarkings>> result;
+
+  const auto& gpkg_markings = parser_.GetMarkings();
+
+  for (const auto& [boundary_id, markings] : gpkg_markings) {
+    for (const auto& gpkg_marking : markings) {
+      maliput_sparse::parser::LaneMarking marking;
+      marking.type = StringToMarkingType(gpkg_marking.marking_type);
+      marking.color = StringToMarkingColor(gpkg_marking.color);
+      marking.weight = StringToMarkingWeight(gpkg_marking.weight);
+      marking.width = gpkg_marking.width;
+      marking.height = gpkg_marking.height;
+      marking.material = gpkg_marking.material;
+      marking.lane_change = StringToLaneChangePermission(gpkg_marking.lane_change_rule);
+
+      // Convert line details
+      for (const auto& gpkg_line : gpkg_marking.lines) {
+        maliput_sparse::parser::LaneMarkingLine line;
+        line.length = gpkg_line.length;
+        line.space = gpkg_line.space;
+        line.width = gpkg_line.width;
+        line.r_offset = gpkg_line.r_offset;
+        line.color = StringToMarkingColor(gpkg_line.color);
+        marking.lines.push_back(line);
+      }
+
+      result[boundary_id].push_back({gpkg_marking.s_start, gpkg_marking.s_end, marking});
+    }
+  }
+
+  return result;
 }
 
 }  // namespace geopackage
