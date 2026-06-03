@@ -2,6 +2,11 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.6.0 (2026-06-03)
+------------------
+* Add empty RoadMarkingBook to RoadNetwork. (`#65 <https://github.com/maliput/maliput_geopackage/issues/65>`_)
+* Contributors: Santiago Lopez
+
 0.5.0 (2026-05-07)
 ------------------
 * Adding lane marking support (`#63 <https://github.com/maliput/maliput_geopackage/issues/63>`_)
