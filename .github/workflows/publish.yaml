@@ -25,7 +25,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v8
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@a79b826cac4afe17e5a0a91e822e192fa181c62b
     with:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
       registry_fork: maliput/bazel-central-registry
