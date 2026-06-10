@@ -2,7 +2,7 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.6.1 (2026-06-10)
+0.7.0 (2026-06-10)
 ------------------
 * Updating how we publish to Bazel (`#67 <https://github.com/maliput/maliput_geopackage/issues/67>`_)
 * Contributors: Juan Carosella
