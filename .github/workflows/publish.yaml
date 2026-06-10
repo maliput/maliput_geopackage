@@ -1,0 +1,36 @@
+# Publishes maliput to the Bazel Central Registry (BCR)
+#
+# This workflow uses the bazel-contrib/publish-to-bcr reusable workflow to
+# automate publishing releases to the BCR. It supports two triggers:
+#
+# 1. Automatic: Triggered when a version tag (*.*.* pattern) is pushed
+# 2. Manual: Triggered via workflow_dispatch for manual retries or overrides
+
+name: Publish to BCR
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag (e.g., v1.2.3)"
+        type: string
+        required: true
+
+jobs:
+  publish:
+    name: Publish to Bazel Central Registry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v8
+    with:
+      tag_name: ${{ inputs.tag_name || github.ref_name }}
+      registry_fork: maliput/bazel-central-registry
+      attest: false
+      draft: true
+    secrets:
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
