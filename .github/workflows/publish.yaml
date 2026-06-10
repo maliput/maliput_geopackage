@@ -22,7 +22,6 @@ on:
 jobs:
   publish:
     name: Publish to Bazel Central Registry
-    runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
