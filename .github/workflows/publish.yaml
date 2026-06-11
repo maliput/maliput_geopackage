@@ -49,7 +49,7 @@ jobs:
       tag_name: ${{ inputs.tag_name || github.ref_name }}
       registry_fork: maliput/bazel-central-registry
       attest: false
-      draft: true
+      draft: false
       # Use the authenticated user's public email for commit author.
       # Fallback to noreply email if no public email is configured.
       author_name: ${{ github.actor }}
