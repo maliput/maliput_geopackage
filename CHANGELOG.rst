@@ -2,6 +2,11 @@
 Changelog for package maliput_geopackage
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.7.1 (2026-06-12)
+------------------
+* Setting author email and name (`#69 <https://github.com/maliput/maliput_geopackage/issues/69>`_)
+* Contributors: Juan Carosella
+
 0.7.0 (2026-06-10)
 ------------------
 * Updating how we publish to Bazel (`#67 <https://github.com/maliput/maliput_geopackage/issues/67>`_)
